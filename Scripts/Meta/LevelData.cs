@@ -11,6 +11,8 @@ public class LevelData : ScriptableObject
     public int chipsForLevel = 100;      // Фишки игрока на уровень
     public int npcStartingChips = 100;   // Стартовые фишки NPC на уровень
     public int raiseAmount = 10;
+    public bool isFinalLevel = false;     // Финальный уровень (босс)
+    public bool isPlayerInvolved = true;  // Участвует ли игрок в уровне
     
     [Header("NPCs in Level")]
     public List<NPCSetup> npcSetups = new List<NPCSetup>();

@@ -8,11 +8,12 @@ public class ActionButtonsController : MonoBehaviour
     [SerializeField] private ActionButton3DSimple raiseButton;
     
     [Header("Settings")]
-    [SerializeField] private int raiseAmount = 10;
+    [SerializeField] private int defaultRaiseAmount = 10;
     
     private PlayerChips playerChips;
     private BettingController bettingController;
     private int currentBet = 0;
+    private int currentRaiseAmount = 10;
     
     void Start()
     {
@@ -31,6 +32,14 @@ public class ActionButtonsController : MonoBehaviour
     public void SetBettingController(BettingController controller)
     {
         bettingController = controller;
+        
+        // Получаем актуальную высоту рейза из BettingController
+        if (bettingController != null)
+        {
+            currentRaiseAmount = bettingController.GetRaiseAmount();
+            Debug.Log($"ActionButtonsController: Raise amount set to {currentRaiseAmount}");
+        }
+        
         Debug.Log("ActionButtonsController: BettingController set");
     }
     
@@ -44,6 +53,12 @@ public class ActionButtonsController : MonoBehaviour
             if (playerChips == null) return;
         }
         
+        // Обновляем высоту рейза из BettingController при каждом обновлении
+        if (bettingController != null)
+        {
+            currentRaiseAmount = bettingController.GetRaiseAmount();
+        }
+        
         if (callButton != null)
         {
             var label = callButton.GetComponentInChildren<TMPro.TextMeshPro>();
@@ -55,14 +70,14 @@ public class ActionButtonsController : MonoBehaviour
         {
             var label = raiseButton.GetComponentInChildren<TMPro.TextMeshPro>();
             if (label != null)
-                label.text = $"RAISE {bet + raiseAmount}";
+                label.text = $"RAISE {bet + currentRaiseAmount}";
         }
         
         if (callButton != null)
             callButton.SetInteractable(playerChips.HasEnoughChips(bet));
         
         if (raiseButton != null)
-            raiseButton.SetInteractable(playerChips.HasEnoughChips(bet + raiseAmount));
+            raiseButton.SetInteractable(playerChips.HasEnoughChips(bet + currentRaiseAmount));
     }
     
     private void OnFoldClicked(PlayerAction action)
@@ -91,13 +106,17 @@ public class ActionButtonsController : MonoBehaviour
     
     private void OnRaiseClicked(PlayerAction action)
     {
-        if (bettingController != null && playerChips != null && playerChips.HasEnoughChips(currentBet + raiseAmount))
+        if (bettingController != null && playerChips != null && playerChips.HasEnoughChips(currentBet + currentRaiseAmount))
         {
             bettingController.SetPlayerAction(PlayerAction.Raise);
         }
         else if (bettingController == null)
         {
             Debug.LogError("BettingController is null! Cannot raise.");
+        }
+        else
+        {
+            Debug.LogWarning($"Not enough chips for raise! Need {currentBet + currentRaiseAmount}, have {playerChips.GetChips()}");
         }
     }
     

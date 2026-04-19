@@ -257,4 +257,10 @@ public class NPCController : MonoBehaviour
         if (emotionCoroutine != null)
             StopCoroutine(emotionCoroutine);
     }
+
+    // Добавьте в класс NPCController:
+public Animator GetHandsAnimator()
+{
+    return handsAnimator;
+}
 }

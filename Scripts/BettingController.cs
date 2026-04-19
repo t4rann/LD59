@@ -468,43 +468,6 @@ public class BettingController
         }
         return active;
     }
-
-    public bool RemoveBrokeNPCs()
-    {
-        List<NPCController> toRemove = new List<NPCController>();
-        
-        foreach (var npc in table.GetAllNPCs())
-        {
-            if (npc == null) continue;
-            
-            NPCChips chips = npc.GetComponent<NPCChips>();
-            if (chips == null) continue;
-            
-            if (chips.IsBroke())
-            {
-                toRemove.Add(npc);
-            }
-        }
-        
-        foreach (var npc in toRemove)
-        {
-            if (npc != null)
-            {
-                table.RemoveNPC(npc);
-                if (npc.gameObject != null)
-                    npc.gameObject.SetActive(false);
-                GameDebug.LogWarning($"{npc.npcName} покинул стол!");
-            }
-        }
-        
-        int aliveCount = 0;
-        foreach (var npc in table.GetAllNPCs())
-        {
-            if (npc != null) aliveCount++;
-        }
-        
-        return aliveCount > 0;
-    }
     
     #endregion
     
@@ -520,5 +483,113 @@ public class BettingController
         actionButtons = buttons;
     }
     
+public bool CollectAnteFromNPCsOnly(int anteAmount)
+{
+    int paidNPCs = 0;
+    List<NPCController> npcsToRemove = new List<NPCController>();
+    
+    foreach (var npc in table.GetAllNPCs())
+    {
+        if (npc == null) continue;
+        
+        NPCChips chips = npc.GetComponent<NPCChips>();
+        
+        if (chips == null)
+        {
+            npcsToRemove.Add(npc);
+            continue;
+        }
+        
+        if (!chips.HasEnoughChips(anteAmount))
+        {
+            npcsToRemove.Add(npc);
+            continue;
+        }
+        
+        chips.RemoveChips(anteAmount);
+        AddToPot(anteAmount);
+        paidNPCs++;
+    }
+    
+    foreach (var npc in npcsToRemove)
+    {
+        if (npc != null)
+        {
+            table.RemoveNPC(npc);
+            if (npc.gameObject != null)
+                npc.gameObject.SetActive(false);
+        }
+    }
+    
+    return paidNPCs > 0;
+}
+
+
+
+// Добавьте поля:
+private bool isFinalLevel = false;
+private bool deleteNPCsOnLoss = true;
+
+// Добавьте методы:
+public void SetFinalLevel(bool isFinal)
+{
+    isFinalLevel = isFinal;
+    if (isFinalLevel)
+    {
+        GameDebug.LogWarning("ФИНАЛЬНЫЙ УРОВЕНЬ: NPC не будут удаляться при проигрыше!");
+    }
+}
+
+public void SetDeleteNPCsOnLoss(bool delete)
+{
+    deleteNPCsOnLoss = delete;
+}
+
+public bool RemoveBrokeNPCs()
+{
+    List<NPCController> toRemove = new List<NPCController>();
+    
+    foreach (var npc in table.GetAllNPCs())
+    {
+        if (npc == null) continue;
+        
+        NPCChips chips = npc.GetComponent<NPCChips>();
+        if (chips == null) continue;
+        
+        if (chips.IsBroke())
+        {
+            if (!deleteNPCsOnLoss || isFinalLevel)
+            {
+                // На финальном уровне не удаляем
+                GameDebug.LogWarning($"{npc.npcName} проиграл, но остается для финала!");
+                npc.DiscardCards();
+            }
+            else
+            {
+                toRemove.Add(npc);
+            }
+        }
+    }
+    
+    foreach (var npc in toRemove)
+    {
+        if (npc != null)
+        {
+            table.RemoveNPC(npc);
+            if (npc.gameObject != null)
+                npc.gameObject.SetActive(false);
+            GameDebug.LogWarning($"{npc.npcName} покинул стол!");
+        }
+    }
+    
+    int aliveCount = 0;
+    foreach (var npc in table.GetAllNPCs())
+    {
+        if (npc != null) aliveCount++;
+    }
+    
+    return aliveCount > 0;
+}
+
     #endregion
 }

@@ -14,7 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LevelData
   levelName: Guide
   roundsCount: 5
-  anteAmount: 10
+  anteAmount: 200
+  chipsForLevel: 1000
+  npcStartingChips: 1000
+  raiseAmount: 200
+  isFinalLevel: 1
+  isPlayerInvolved: 1
   npcSetups:
   - npcPrefab: {fileID: 1650629172590557201, guid: e8b876889be369c4895f7d805359082a, type: 3}
     npcBrain: {fileID: 11400000, guid: 067bbf5965832dd4894aa1c692e96dba, type: 2}

@@ -1,4 +1,3 @@
-// NPCVisualController.cs
 using UnityEngine;
 using TMPro;
 using Pixelplacement;
@@ -8,7 +7,8 @@ public class NPCVisualController : MonoBehaviour
 {
     [Header("Chips Display")]
     [SerializeField] private TextMeshPro chipsText;
-    [SerializeField] private GameObject chipsStackPrefab;
+    [SerializeField] private GameObject chipsStackPrefab10;
+    [SerializeField] private GameObject chipsStackPrefab100;
     [SerializeField] private Transform chipsSpawnPoint;
     [SerializeField] private Transform bankTarget;
     
@@ -57,16 +57,33 @@ public class NPCVisualController : MonoBehaviour
     {
         UpdateChipsText(chips);
         
-        if (chipsStackPrefab != null && chipsSpawnPoint != null)
+        if (chipsStackPrefab10 != null && chipsSpawnPoint != null)
         {
-            int chipsToShow = chips / 10;
-            for (int i = 0; i < chipsToShow; i++)
+            if (chips <= 0) return;
+            
+            int chips100 = chips / 100;
+            int chips10 = (chips % 100) / 10;
+            
+            int index = 0;
+            
+            for (int i = 0; i < chips100; i++)
             {
-                Vector3 pos = chipsSpawnPoint.position + Vector3.up * (i * stackSpacing);
-                GameObject chip = Instantiate(chipsStackPrefab, pos, Quaternion.identity);
+                Vector3 pos = chipsSpawnPoint.position + Vector3.up * (index * stackSpacing);
+                GameObject chip = Instantiate(chipsStackPrefab100, pos, Quaternion.identity);
                 chip.transform.SetParent(chipsSpawnPoint);
                 chip.transform.localScale = Vector3.one * npcChipScale;
                 activeChips.Add(chip);
+                index++;
+            }
+            
+            for (int i = 0; i < chips10; i++)
+            {
+                Vector3 pos = chipsSpawnPoint.position + Vector3.up * (index * stackSpacing);
+                GameObject chip = Instantiate(chipsStackPrefab10, pos, Quaternion.identity);
+                chip.transform.SetParent(chipsSpawnPoint);
+                chip.transform.localScale = Vector3.one * npcChipScale;
+                activeChips.Add(chip);
+                index++;
             }
         }
     }
@@ -99,10 +116,15 @@ public class NPCVisualController : MonoBehaviour
     
     private void FlyChipsToBank(int amount)
     {
-        if (bankTarget == null || chipsStackPrefab == null) return;
+        if (bankTarget == null || chipsStackPrefab10 == null) return;
         
-        int chipsCount = amount / 10;
-        int chipsToRemove = Mathf.Min(chipsCount, activeChips.Count);
+        int chips100 = amount / 100;
+        int chips10 = (amount % 100) / 10;
+        int totalChips = chips100 + chips10;
+        
+        if (totalChips == 0) totalChips = 1;
+        
+        int chipsToRemove = Mathf.Min(totalChips, activeChips.Count);
         
         for (int i = 0; i < chipsToRemove; i++)
         {
@@ -112,7 +134,6 @@ public class NPCVisualController : MonoBehaviour
             GameObject chip = activeChips[index];
             activeChips.RemoveAt(index);
             
-            // Анимация полета с уменьшением
             Tween.Position(chip.transform, bankTarget.position, flyDuration, 0, flyCurve);
             Tween.LocalScale(chip.transform, Vector3.one * bankChipScale, flyDuration, 0, flyCurve, 
                 Tween.LoopType.None, null, () =>
@@ -130,12 +151,16 @@ public class NPCVisualController : MonoBehaviour
     {
         if (bankTarget == null) return;
         
-        int chipsCount = amount / 10;
+        int chips100 = amount / 100;
+        int chips10 = (amount % 100) / 10;
+        int totalChips = chips100 + chips10;
+        
+        if (totalChips == 0) totalChips = 1;
         
         BankChipsVisualController bank = FindObjectOfType<BankChipsVisualController>();
         if (bank != null)
         {
-            bank.RequestChips(chipsCount, this);
+            bank.RequestChips(totalChips, this);
         }
     }
     
@@ -148,7 +173,6 @@ public class NPCVisualController : MonoBehaviour
         
         Vector3 targetPos = chipsSpawnPoint.position + Vector3.up * ((activeChips.Count - 1) * stackSpacing);
         
-        // Анимация полета с увеличением
         Tween.Position(chip.transform, targetPos, flyDuration, 0, flyCurve);
         Tween.LocalScale(chip.transform, Vector3.one * npcChipScale, flyDuration, 0, flyCurve);
     }

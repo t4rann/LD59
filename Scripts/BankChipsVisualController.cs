@@ -6,7 +6,8 @@ using System.Collections.Generic;
 public class BankChipsVisualController : MonoBehaviour
 {
     [Header("Chips Display")]
-    [SerializeField] private GameObject chipsStackPrefab;
+    [SerializeField] private GameObject chipsStackPrefab10;
+    [SerializeField] private GameObject chipsStackPrefab100;
     [SerializeField] private Transform bankChipsPoint;
     [SerializeField] private TextMeshPro bankText;
     
@@ -27,8 +28,8 @@ public class BankChipsVisualController : MonoBehaviour
         if (flyCurve == null || flyCurve.keys.Length == 0)
             flyCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         
-        if (chipsStackPrefab == null)
-            Debug.LogError("chipsStackPrefab not assigned in BankChipsVisualController!");
+        if (chipsStackPrefab10 == null)
+            Debug.LogError("chipsStackPrefab10 not assigned in BankChipsVisualController!");
         
         if (bankChipsPoint == null)
             Debug.LogError("bankChipsPoint not assigned in BankChipsVisualController!");
@@ -48,37 +49,45 @@ public class BankChipsVisualController : MonoBehaviour
     {
         UpdateBankText(pot);
         
-        // Если пот увеличился - добавляем новые фишки
         if (pot > lastPot)
         {
             int addedAmount = pot - lastPot;
             AddChipsToBank(addedAmount);
         }
-        // Если пот уменьшился - удаляем фишки (но по логике пот не должен уменьшаться)
         
         lastPot = pot;
     }
     
     private void AddChipsToBank(int amount)
     {
-        if (chipsStackPrefab == null || bankChipsPoint == null) return;
+        if (chipsStackPrefab10 == null || bankChipsPoint == null) return;
         
-        // Создаем 1 фишку за каждые 10 денег
-        int chipsToCreate = Mathf.Max(1, amount / 10);
+        int chips100 = amount / 100;
+        int chips10 = (amount % 100) / 10;
         
-        Debug.Log($"Adding {chipsToCreate} chips to bank for {amount} money");
+        Debug.Log($"Adding {chips100}x100 and {chips10}x10 chips to bank for {amount} money");
         
-        for (int i = 0; i < chipsToCreate; i++)
+        for (int i = 0; i < chips100; i++)
         {
-            CreateNewChipInBank();
+            CreateNewChipInBank(chipsStackPrefab100);
+        }
+        
+        for (int i = 0; i < chips10; i++)
+        {
+            CreateNewChipInBank(chipsStackPrefab10);
+        }
+        
+        if (chips100 == 0 && chips10 == 0 && amount > 0)
+        {
+            CreateNewChipInBank(chipsStackPrefab10);
         }
     }
     
-    private void CreateNewChipInBank()
+    private void CreateNewChipInBank(GameObject prefab)
     {
-        if (chipsStackPrefab == null) return;
+        if (prefab == null) return;
         
-        GameObject chip = Instantiate(chipsStackPrefab, bankChipsPoint.position, Quaternion.identity);
+        GameObject chip = Instantiate(prefab, bankChipsPoint.position, Quaternion.identity);
         chip.transform.SetParent(bankChipsPoint);
         chip.transform.localScale = Vector3.one * chipScale;
         

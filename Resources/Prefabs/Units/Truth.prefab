@@ -48,6 +48,22 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 1149834890503198354, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.68
+      objectReference: {fileID: 0}
+    - target: {fileID: 2986121836112611434, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
+      propertyPath: m_Color.b
+      value: 0.26059094
+      objectReference: {fileID: 0}
+    - target: {fileID: 2986121836112611434, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
+      propertyPath: m_Color.g
+      value: 0.26059094
+      objectReference: {fileID: 0}
+    - target: {fileID: 2986121836112611434, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
+      propertyPath: m_Color.r
+      value: 0.9056604
+      objectReference: {fileID: 0}
     - target: {fileID: 4191614480979061784, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
       propertyPath: m_Name
       value: Truth
@@ -56,6 +72,10 @@ PrefabInstance:
       propertyPath: brain
       value: 
       objectReference: {fileID: 11400000, guid: 2ac6285aa12932b4db34cb395808a119, type: 2}
+    - target: {fileID: 8601030683258813870, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 3789563352216957904, guid: 2278d42ad62fc754aa54b0a8053dc31c, type: 3}
     - target: {fileID: 8813589132642129453, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
       propertyPath: startingChips
       value: 5

@@ -10,7 +10,7 @@ public class LevelTransitionEffects : MonoBehaviour
     
     [Header("Particle Effects")]
     [SerializeField] private ParticleSystem transitionParticles;
-    [SerializeField] private ParticleSystem levelCompleteParticles;  // Партикл для завершения уровня
+    [SerializeField] private ParticleSystem levelCompleteParticles;
     [SerializeField] private float particleStartDelay = 0.2f;
     
     [Header("Visual Elements")]
@@ -19,43 +19,56 @@ public class LevelTransitionEffects : MonoBehaviour
     private Camera mainCamera;
     private GameObject fadePanel;
     private CanvasGroup fadeCanvasGroup;
+    private bool isTransitioning = false;
     
     void Awake()
     {
         mainCamera = Camera.main;
         
-        if (transitionParticles != null)
-        {
-            transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            transitionParticles.Clear();
-            transitionParticles.gameObject.SetActive(true);
-        }
-        
-        if (levelCompleteParticles != null)
-        {
-            levelCompleteParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            levelCompleteParticles.Clear();
-        }
+        // Полностью останавливаем партиклы при загрузке
+        StopAllParticles();
     }
     
     void Start()
     {
+        // Еще раз останавливаем на всякий случай
+        StopAllParticles();
+    }
+    
+    private void StopAllParticles()
+    {
+        // Останавливаем партикл перехода
         if (transitionParticles != null)
         {
-            transitionParticles.Stop();
+            transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            transitionParticles.Clear();
+            // Убеждаемся что партикл не проигрывается
+            transitionParticles.gameObject.SetActive(true);
+            transitionParticles.Play();
+            transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             transitionParticles.Clear();
         }
         
+        // Останавливаем партикл завершения уровня
         if (levelCompleteParticles != null)
         {
-            levelCompleteParticles.Stop();
+            levelCompleteParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            levelCompleteParticles.Clear();
+            levelCompleteParticles.gameObject.SetActive(true);
+            levelCompleteParticles.Play();
+            levelCompleteParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             levelCompleteParticles.Clear();
         }
+        
+        Debug.Log("[Transition] Все партиклы остановлены");
     }
     
     // Эффект завершения уровня
     public IEnumerator PlayLevelComplete()
     {
+        if (isTransitioning) yield break;
+        isTransitioning = true;
+        
         Debug.Log("[Transition] Воспроизведение эффекта завершения уровня");
         
         // Запускаем партикл завершения уровня
@@ -63,6 +76,7 @@ public class LevelTransitionEffects : MonoBehaviour
         {
             levelCompleteParticles.Clear();
             levelCompleteParticles.Play();
+            Debug.Log("[Transition] LevelComplete партикл запущен");
         }
         
         // Небольшая задержка
@@ -72,15 +86,28 @@ public class LevelTransitionEffects : MonoBehaviour
         if (levelCompleteParticles != null)
         {
             levelCompleteParticles.Stop();
+            levelCompleteParticles.Clear();
+            Debug.Log("[Transition] LevelComplete партикл остановлен");
         }
+        
+        isTransitioning = false;
     }
     
     // Запуск перехода - затемнение
     public IEnumerator StartTransition()
     {
+        if (isTransitioning) yield break;
+        isTransitioning = true;
+        
+        // Принудительно останавливаем и очищаем партикл перед запуском
         if (transitionParticles != null)
         {
+            transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             transitionParticles.Clear();
+            
+            // Небольшая задержка перед запуском
+            yield return new WaitForSeconds(0.05f);
+            
             transitionParticles.Play();
             Debug.Log("[Transition] Партикл запущен");
         }
@@ -105,6 +132,8 @@ public class LevelTransitionEffects : MonoBehaviour
             transitionParticles.Clear();
             Debug.Log("[Transition] Партикл остановлен");
         }
+        
+        isTransitioning = false;
     }
     
     private IEnumerator FadeToBlack()
@@ -287,18 +316,8 @@ public class LevelTransitionEffects : MonoBehaviour
         if (fadePanel != null)
             Destroy(fadePanel);
         
-        if (transitionParticles != null)
-        {
-            transitionParticles.Stop();
-            transitionParticles.Clear();
-        }
-        
-        if (levelCompleteParticles != null)
-        {
-            levelCompleteParticles.Stop();
-            levelCompleteParticles.Clear();
-        }
-        
+        StopAllParticles();
         EnableVisualElements();
+        isTransitioning = false;
     }
 }

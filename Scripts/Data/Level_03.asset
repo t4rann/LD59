@@ -15,13 +15,13 @@ MonoBehaviour:
   levelName: Guide
   roundsCount: 5
   anteAmount: 10
+  chipsForLevel: 100
+  npcStartingChips: 50
+  raiseAmount: 20
   npcSetups:
-  - npcPrefab: {fileID: 6596725218989641567, guid: 9df6e1a3f9c7e54408d3939b725e3dc1, type: 3}
-    npcBrain: {fileID: 11400000, guid: 7607ccc746e3a8b4994644209447a419, type: 2}
+  - npcPrefab: {fileID: 519470724119315500, guid: 838ef7ac836496a429c6178911a70ff7, type: 3}
+    npcBrain: {fileID: 11400000, guid: 9b2ca23496b1fed468dec0b40bb18018, type: 2}
     spawnPoint: {fileID: 0}
   - npcPrefab: {fileID: 8378643095259388654, guid: ec7bf87814d956447884810e39e69d6c, type: 3}
     npcBrain: {fileID: 11400000, guid: d5522e1251b822942aa1126432034a7f, type: 2}
-    spawnPoint: {fileID: 0}
-  - npcPrefab: {fileID: 519470724119315500, guid: 838ef7ac836496a429c6178911a70ff7, type: 3}
-    npcBrain: {fileID: 11400000, guid: 9b2ca23496b1fed468dec0b40bb18018, type: 2}
     spawnPoint: {fileID: 0}

@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using System.Collections.Generic;
 
 public class GameLoop : MonoBehaviour
 {
@@ -30,6 +31,10 @@ public class GameLoop : MonoBehaviour
     [SerializeField] private LevelTransitionEffects transitionEffects;
     [SerializeField] private float levelTransitionDelay = 0.5f;
     
+    [Header("Final Scene")]
+    [SerializeField] private FinalSceneController finalSceneController;
+    [SerializeField] private float finalSceneDelay = 1f;
+    
     private RoundController roundController;
     private BettingController bettingController;
     private ShowdownController showdownController;
@@ -37,6 +42,7 @@ public class GameLoop : MonoBehaviour
     
     private int currentRound = 1;
     private int currentLevelIndex = 0;
+    private List<NPCController> finalLevelNPCs = new List<NPCController>();
     
     void Start()
     {
@@ -109,9 +115,23 @@ public class GameLoop : MonoBehaviour
         {
             LevelData level = levels[currentLevelIndex];
             
+            if (level.isFinalLevel)
+            {
+                GameDebug.LogHeader($"ФИНАЛЬНЫЙ УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
+                GameDebug.LogInfo($"БОСС-БИТВА! Раундов: {level.roundsCount}");
+                
+                yield return StartCoroutine(PlayFinalLevel(level));
+                
+                if (!GameManager.Instance.IsGameOver())
+                {
+                    yield return StartCoroutine(PlayFinalScene());
+                }
+                break;
+            }
+            
             if (currentLevelIndex == 0)
             {
-                if (playerChips != null)
+                if (playerChips != null && level.isPlayerInvolved)
                 {
                     playerChips.SetChipsForLevel(level.chipsForLevel);
                 }
@@ -133,7 +153,14 @@ public class GameLoop : MonoBehaviour
             }
             
             GameDebug.LogHeader($"УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
-            GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек игрока: {level.chipsForLevel} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount}");
+            if (level.isPlayerInvolved)
+            {
+                GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек игрока: {level.chipsForLevel} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount}");
+            }
+            else
+            {
+                GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount} | Режим: NPC vs NPC");
+            }
             GameDebug.LogDivider();
             
             for (int round = 1; round <= level.roundsCount; round++)
@@ -141,19 +168,26 @@ public class GameLoop : MonoBehaviour
                 if (GameManager.Instance.IsGameOver())
                     yield break;
                 
-                yield return PlayRound(round, level);
+                if (level.isPlayerInvolved)
+                {
+                    yield return PlayRound(round, level);
+                }
+                else
+                {
+                    yield return PlayNPCRound(round, level);
+                }
+                
                 bettingController.CheckAndRemoveBrokeNPCs();
             }
             
-            // Проверяем проигрыш игрока ТОЛЬКО после завершения всех раундов уровня
-            if (playerChips != null && playerChips.IsBroke())
+            if (playerChips != null && level.isPlayerInvolved && playerChips.IsBroke())
             {
                 GameDebug.LogError("Игрок проиграл все фишки на уровне!");
                 GameManager.Instance.PlayerOutOfChips();
                 yield break;
             }
             
-            if (currentLevelIndex < levels.Length - 1)
+            if (currentLevelIndex < levels.Length - 1 && !levels[currentLevelIndex + 1].isFinalLevel)
             {
                 GameDebug.LogSuccess($"Уровень {currentLevelIndex + 1} пройден!");
                 
@@ -163,8 +197,115 @@ public class GameLoop : MonoBehaviour
                 yield return new WaitForSeconds(1f);
             }
         }
+    }
+    
+    private IEnumerator PlayFinalLevel(LevelData level)
+    {
+
+    finalLevelNPCs.Clear();
+    
+    // Устанавливаем флаг финального уровня (не удаляем NPC)
+    if (bettingController != null)
+    {
+        bettingController.SetFinalLevel(true);
+        bettingController.SetDeleteNPCsOnLoss(false);
+    }
+
         
-        if (!GameManager.Instance.IsGameOver())
+        if (currentLevelIndex == 0)
+        {
+            if (playerChips != null && level.isPlayerInvolved)
+            {
+                playerChips.SetChipsForLevel(level.chipsForLevel);
+            }
+            LoadNewLevel(level);
+        }
+        else
+        {
+            if (transitionEffects != null)
+            {
+                yield return StartCoroutine(transitionEffects.StartTransition());
+                LoadNewLevel(level);
+                yield return StartCoroutine(transitionEffects.EndTransition());
+                yield return new WaitForSeconds(levelTransitionDelay);
+            }
+            else
+            {
+                LoadNewLevel(level);
+            }
+        }
+        
+        foreach (var npc in table.GetAllNPCs())
+        {
+            if (npc != null)
+            {
+                finalLevelNPCs.Add(npc);
+            }
+        }
+        
+        if (finalSceneController != null)
+        {
+            finalSceneController.SetFinalNPCs(finalLevelNPCs.ToArray());
+        }
+        
+        GameDebug.LogHeader($"ФИНАЛЬНЫЙ УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
+        if (level.isPlayerInvolved)
+        {
+            GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишки игрока: {level.chipsForLevel} | Фишки NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount}");
+        }
+        else
+        {
+            GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишки NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount} | БИТВА БОССОВ!");
+        }
+        GameDebug.LogDivider();
+        
+        for (int round = 1; round <= level.roundsCount; round++)
+        {
+            if (GameManager.Instance.IsGameOver())
+                yield break;
+            
+            if (level.isPlayerInvolved)
+            {
+                yield return PlayRound(round, level);
+            }
+            else
+            {
+                yield return PlayNPCRound(round, level);
+            }
+            
+            bettingController.CheckAndRemoveBrokeNPCs();
+        }
+        
+        if (playerChips != null && level.isPlayerInvolved && playerChips.IsBroke())
+        {
+            GameDebug.LogError("Игрок проиграл все фишки!");
+            GameManager.Instance.PlayerOutOfChips();
+            yield break;
+        }
+    }
+    
+private IEnumerator PlayFinalScene()
+{
+    // Сброс флагов
+    if (bettingController != null)
+    {
+        bettingController.SetFinalLevel(false);
+        bettingController.SetDeleteNPCsOnLoss(true);
+    }
+    
+        GameDebug.LogHeader("ФИНАЛЬНАЯ СЦЕНА");
+        
+        if (finalSceneController != null)
+        {
+            if (finalLevelNPCs.Count > 0)
+            {
+                finalSceneController.SetFinalNPCs(finalLevelNPCs.ToArray());
+            }
+            
+            yield return new WaitForSeconds(finalSceneDelay);
+            yield return StartCoroutine(finalSceneController.PlayFinalScene());
+        }
+        else
         {
             if (transitionEffects != null)
             {
@@ -172,12 +313,74 @@ public class GameLoop : MonoBehaviour
                 yield return new WaitForSeconds(0.5f);
                 yield return StartCoroutine(transitionEffects.EndTransition());
             }
-            
-            table.FullCleanup();
-            GameDebug.LogHeader("ВСЕ УРОВНИ ПРОЙДЕНЫ! ПОБЕДА!");
-            GameDebug.LogInfo("Нажми R для рестарта");
-            StartCoroutine(RestartWaiter());
         }
+        
+        table.FullCleanup();
+        GameDebug.LogHeader("ИГРА ПРОЙДЕНА! ПОБЕДА!");
+        GameDebug.LogInfo("Нажми R для рестарта");
+        StartCoroutine(RestartWaiter());
+    }
+    
+    IEnumerator PlayNPCRound(int roundNumber, LevelData level)
+    {
+        currentRound = roundNumber;
+        bettingController.ResetRoundState();
+        
+        if (bankVisual != null)
+            bankVisual.ClearBank();
+        
+        GameDebug.LogRound(roundNumber, level.roundsCount);
+        
+        int aliveNPCs = 0;
+        foreach (var npc in table.GetAllNPCs())
+        {
+            if (npc != null)
+            {
+                NPCChips chips = npc.GetComponent<NPCChips>();
+                if (chips != null && !chips.IsBroke())
+                    aliveNPCs++;
+            }
+        }
+        
+        if (aliveNPCs <= 1)
+        {
+            GameDebug.LogSuccess("Остался только один NPC! Битва окончена!");
+            yield break;
+        }
+        
+        if (!bettingController.RemoveBrokeNPCs())
+        {
+            GameDebug.LogSuccess("Все NPC покинули стол!");
+            yield break;
+        }
+        
+        bool anteCollected = bettingController.CollectAnteFromNPCsOnly(level.anteAmount);
+        if (!anteCollected)
+        {
+            GameDebug.LogError("Не удалось собрать анте с NPC!");
+            yield break;
+        }
+        
+        yield return roundController.DealPhase();
+        yield return roundController.EmotionsPhase();
+        
+        yield return bettingController.BettingPhase();
+        
+        if (GameManager.Instance.IsGameOver())
+            yield break;
+        
+        showdownController.ShowdownPhase(PlayerAction.None);
+        
+        roundController.CleanupPhase();
+        table.DiscardAllCards();
+        
+        yield return new WaitForSeconds(3f);
+        
+        table.HideAllNPCCards();
+        table.ShowAllNPCCards();
+        
+        yield return new WaitForSeconds(roundDelay);
+        Debug.Log("");
     }
     
     private void LoadNewLevel(LevelData level)
@@ -187,20 +390,17 @@ public class GameLoop : MonoBehaviour
             table.ClearAllNPCs();
         }
         
-        // Выдаем фишки игроку согласно настройкам уровня
-        if (playerChips != null)
+        if (playerChips != null && level.isPlayerInvolved)
         {
             playerChips.SetChipsForLevel(level.chipsForLevel);
             Debug.Log($"Игроку выдано {level.chipsForLevel} фишек");
         }
         
-        // Устанавливаем высоту рейза
         if (bettingController != null)
         {
             bettingController.SetRaiseAmount(level.raiseAmount);
         }
         
-        // Загружаем уровень (NPC получат фишки из level.npcStartingChips внутри LevelController)
         if (levelController != null)
         {
             levelController.LoadLevel(level, table);
@@ -270,7 +470,6 @@ public class GameLoop : MonoBehaviour
         
         showdownController.ShowdownPhase(bettingController.PlayerAction);
         
-        // Проверяем проигрыш игрока ПОСЛЕ вскрытия
         bettingController.CheckPlayerLossAfterShowdown();
         
         roundController.CleanupPhase();
@@ -303,7 +502,6 @@ public class GameLoop : MonoBehaviour
             yield break;
         }
         
-        // Проверяем, есть ли живые NPC
         int aliveNPCs = 0;
         foreach (var npc in table.GetAllNPCs())
         {
@@ -367,7 +565,6 @@ public class GameLoop : MonoBehaviour
         
         showdownController.ShowdownPhase(bettingController.PlayerAction);
         
-        // Проверяем проигрыш игрока ПОСЛЕ вскрытия
         bettingController.CheckPlayerLossAfterShowdown();
         
         roundController.CleanupPhase();
