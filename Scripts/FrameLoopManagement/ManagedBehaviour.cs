@@ -4,8 +4,6 @@ using UnityEngine;
 
 public class ManagedBehaviour : ManagedBehaviourBase
 {
-    public static ReferenceSetToggle PauseAll = new ReferenceSetToggle();
-
     private bool initialized = false;
 
     public void Initialize()
@@ -59,6 +57,6 @@ public class ManagedBehaviour : ManagedBehaviourBase
 
     private bool CanUpdate()
     {
-        return UpdateWhenPaused || !PauseAll.True;
+        return UpdateWhenPaused;
     }
 }

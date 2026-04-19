@@ -20,6 +20,9 @@ public class BankChipsVisualController : MonoBehaviour
     [SerializeField] private float flyDuration = 0.5f;
     [SerializeField] private AnimationCurve flyCurve;
     
+    [Header("Sound Settings")]
+    [SerializeField] private bool playChipSound = true;
+    
     private List<GameObject> bankChips = new List<GameObject>();
     private int lastPot = 0;
     
@@ -67,6 +70,9 @@ public class BankChipsVisualController : MonoBehaviour
         
         Debug.Log($"Adding {chips100}x100 and {chips10}x10 chips to bank for {amount} money");
         
+        // Воспроизводим ОДИН звук (теперь BetSound вместо ChipAddSound)
+        PlayChipSound();
+        
         for (int i = 0; i < chips100; i++)
         {
             CreateNewChipInBank(chipsStackPrefab100);
@@ -100,6 +106,9 @@ public class BankChipsVisualController : MonoBehaviour
     public void AddChip(GameObject chip, float scale)
     {
         if (chip == null) return;
+        
+        // Один звук при добавлении фишки
+        PlayChipSound();
         
         chip.transform.SetParent(bankChipsPoint);
         chip.transform.localScale = Vector3.one * scale;
@@ -165,4 +174,22 @@ public class BankChipsVisualController : MonoBehaviour
     {
         ClearBank();
     }
+    
+    #region Sound Methods
+    
+private void PlayChipSound()
+{
+    if (!playChipSound) return;
+    
+    if (AudioManager.Instance != null)
+    {
+        AudioManager.Instance.PlayBetSound(); // Всегда используем BetSound
+    }
+    else
+    {
+        Debug.LogWarning("AudioManager.Instance is null, cannot play sound");
+    }
+}
+    
+    #endregion
 }

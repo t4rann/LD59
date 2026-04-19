@@ -22,6 +22,9 @@ public class PlayerChipsVisualController : MonoBehaviour
     [SerializeField] private float flyDuration = 0.5f;
     [SerializeField] private AnimationCurve flyCurve;
     
+    [Header("Sound Settings")]
+    [SerializeField] private bool playChipSound = true;
+    
     private PlayerChips playerChips;
     private int lastChipsCount;
     private List<GameObject> activeChips = new List<GameObject>();
@@ -157,6 +160,9 @@ public class PlayerChipsVisualController : MonoBehaviour
             return;
         }
         
+        // Воспроизводим ОДИН звук проигрыша фишек
+        PlayChipSound();
+        
         // Определяем сколько фишек каждого номинала нужно отправить
         int chips100 = amount / 100;
         int chips10 = (amount % 100) / 10;
@@ -193,6 +199,9 @@ public class PlayerChipsVisualController : MonoBehaviour
     {
         if (bankTarget == null) return;
         
+        // Воспроизводим ОДИН звук выигрыша фишек
+        PlayChipSound();
+        
         int chips100 = amount / 100;
         int chips10 = (amount % 100) / 10;
         int totalChips = chips100 + chips10;
@@ -227,6 +236,20 @@ public class PlayerChipsVisualController : MonoBehaviour
         Tween.Position(chip.transform, targetPos, flyDuration, 0, flyCurve);
         Tween.LocalScale(chip.transform, Vector3.one * playerChipScale, flyDuration, 0, flyCurve);
     }
+    
+    #region Sound Methods
+    
+    private void PlayChipSound()
+    {
+        if (!playChipSound) return;
+        
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayChipAddSound();
+        }
+    }
+    
+    #endregion
     
     void OnDestroy()
     {

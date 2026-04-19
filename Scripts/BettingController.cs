@@ -22,7 +22,11 @@ public class BettingController
     private bool canPlayerAct = false;
     private ActionButtonsController actionButtons;
     private bool waitingForNPCsAfterRaise = false;
-    private bool playerIsBrokeThisRound = false; // Флаг, что игрок проиграл фишки в этом раунде
+    private bool playerIsBrokeThisRound = false;
+    
+    // Флаги для финального уровня
+    private bool isFinalLevel = false;
+    private bool deleteNPCsOnLoss = true;
     
     public BettingController(TableController table, float turnDelay, int ante)
     {
@@ -52,6 +56,11 @@ public class BettingController
     public int GetRaiseAmount()
     {
         return raiseAmount;
+    }
+    
+    public void SetActionButtons(ActionButtonsController buttons)
+    {
+        actionButtons = buttons;
     }
     
     private void AddToPot(int amount)
@@ -86,6 +95,8 @@ public class BettingController
         playerChips.RemoveChips(anteAmount);
         AddToPot(anteAmount);
         GameDebug.LogInfo($"Вы внесли анте: {anteAmount}");
+        
+        AudioManager.Instance?.PlayBetSound();
         
         List<NPCController> npcsToRemove = new List<NPCController>();
         
@@ -186,17 +197,13 @@ public class BettingController
         
         yield return ProcessPlayerTurn();
         
-        // Если игрок сделал рейз, даем NPC возможность ответить
         if (PlayerAction == PlayerAction.Raise && table.GetActivePlayersCount() > 0)
         {
             GameDebug.LogInfo("Игрок сделал рейз! NPC отвечают...");
             yield return AfterPlayerRaisePhase();
         }
-        
-        // НЕ проверяем здесь проигрыш игрока! Только после вскрытия
     }
     
-    // Проверка проигрыша игрока ПОСЛЕ вскрытия
     public void CheckPlayerLossAfterShowdown()
     {
         if (playerChips != null && playerChips.IsBroke())
@@ -307,6 +314,7 @@ public class BettingController
             case PlayerAction.Fold:
                 npc.DiscardCards();
                 npc.IncrementConsecutiveFolds();
+                AudioManager.Instance?.PlayFoldSound();
                 break;
                 
             case PlayerAction.Call:
@@ -314,6 +322,7 @@ public class BettingController
                 chips.RemoveChips(CurrentBet);
                 AddToPot(CurrentBet);
                 npc.ResetConsecutiveFolds();
+                AudioManager.Instance?.PlayCallSound();
                 break;
                 
             case PlayerAction.Raise:
@@ -325,6 +334,7 @@ public class BettingController
                 GameDebug.LogRaise(CurrentBet);
                 OnPlayerRaised?.Invoke(npc.npcName);
                 npc.ResetConsecutiveFolds();
+                AudioManager.Instance?.PlayRaiseSound();
                 break;
         }
     }
@@ -412,12 +422,14 @@ public class BettingController
                 if (player != null)
                     player.FoldCards();
                 GameDebug.LogWarning("Вы сбросили карты");
+                AudioManager.Instance?.PlayFoldSound();
                 break;
                 
             case PlayerAction.Call:
                 if (playerChips != null)
                     playerChips.RemoveChips(CurrentBet);
                 AddToPot(CurrentBet);
+                AudioManager.Instance?.PlayCallSound();
                 break;
                 
             case PlayerAction.Raise:
@@ -428,6 +440,7 @@ public class BettingController
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
                 OnPlayerRaised?.Invoke("Игрок");
+                AudioManager.Instance?.PlayRaiseSound();
                 break;
         }
     }
@@ -469,127 +482,105 @@ public class BettingController
         return active;
     }
     
-    #endregion
-    
-    #region Utility
-    
-    public void SetNPCTurnDelay(float delay)
+    public bool CollectAnteFromNPCsOnly(int anteAmount)
     {
-        npcTurnDelay = delay;
-    }
-    
-    public void SetActionButtons(ActionButtonsController buttons)
-    {
-        actionButtons = buttons;
-    }
-    
-public bool CollectAnteFromNPCsOnly(int anteAmount)
-{
-    int paidNPCs = 0;
-    List<NPCController> npcsToRemove = new List<NPCController>();
-    
-    foreach (var npc in table.GetAllNPCs())
-    {
-        if (npc == null) continue;
+        int paidNPCs = 0;
+        List<NPCController> npcsToRemove = new List<NPCController>();
         
-        NPCChips chips = npc.GetComponent<NPCChips>();
-        
-        if (chips == null)
+        foreach (var npc in table.GetAllNPCs())
         {
-            npcsToRemove.Add(npc);
-            continue;
-        }
-        
-        if (!chips.HasEnoughChips(anteAmount))
-        {
-            npcsToRemove.Add(npc);
-            continue;
-        }
-        
-        chips.RemoveChips(anteAmount);
-        AddToPot(anteAmount);
-        paidNPCs++;
-    }
-    
-    foreach (var npc in npcsToRemove)
-    {
-        if (npc != null)
-        {
-            table.RemoveNPC(npc);
-            if (npc.gameObject != null)
-                npc.gameObject.SetActive(false);
-        }
-    }
-    
-    return paidNPCs > 0;
-}
-
-
-
-// Добавьте поля:
-private bool isFinalLevel = false;
-private bool deleteNPCsOnLoss = true;
-
-// Добавьте методы:
-public void SetFinalLevel(bool isFinal)
-{
-    isFinalLevel = isFinal;
-    if (isFinalLevel)
-    {
-        GameDebug.LogWarning("ФИНАЛЬНЫЙ УРОВЕНЬ: NPC не будут удаляться при проигрыше!");
-    }
-}
-
-public void SetDeleteNPCsOnLoss(bool delete)
-{
-    deleteNPCsOnLoss = delete;
-}
-
-public bool RemoveBrokeNPCs()
-{
-    List<NPCController> toRemove = new List<NPCController>();
-    
-    foreach (var npc in table.GetAllNPCs())
-    {
-        if (npc == null) continue;
-        
-        NPCChips chips = npc.GetComponent<NPCChips>();
-        if (chips == null) continue;
-        
-        if (chips.IsBroke())
-        {
-            if (!deleteNPCsOnLoss || isFinalLevel)
+            if (npc == null) continue;
+            
+            NPCChips chips = npc.GetComponent<NPCChips>();
+            
+            if (chips == null)
             {
-                // На финальном уровне не удаляем
-                GameDebug.LogWarning($"{npc.npcName} проиграл, но остается для финала!");
-                npc.DiscardCards();
+                npcsToRemove.Add(npc);
+                continue;
             }
-            else
+            
+            if (!chips.HasEnoughChips(anteAmount))
             {
-                toRemove.Add(npc);
+                npcsToRemove.Add(npc);
+                continue;
+            }
+            
+            chips.RemoveChips(anteAmount);
+            AddToPot(anteAmount);
+            paidNPCs++;
+        }
+        
+        foreach (var npc in npcsToRemove)
+        {
+            if (npc != null)
+            {
+                table.RemoveNPC(npc);
+                if (npc.gameObject != null)
+                    npc.gameObject.SetActive(false);
             }
         }
+        
+        return paidNPCs > 0;
     }
     
-    foreach (var npc in toRemove)
+    public void SetFinalLevel(bool isFinal)
     {
-        if (npc != null)
+        isFinalLevel = isFinal;
+        if (isFinalLevel)
         {
-            table.RemoveNPC(npc);
-            if (npc.gameObject != null)
-                npc.gameObject.SetActive(false);
-            GameDebug.LogWarning($"{npc.npcName} покинул стол!");
+            GameDebug.LogWarning("ФИНАЛЬНЫЙ УРОВЕНЬ: NPC не будут удаляться при проигрыше!");
         }
     }
     
-    int aliveCount = 0;
-    foreach (var npc in table.GetAllNPCs())
+    public void SetDeleteNPCsOnLoss(bool delete)
     {
-        if (npc != null) aliveCount++;
+        deleteNPCsOnLoss = delete;
     }
     
-    return aliveCount > 0;
-}
-
+    public bool RemoveBrokeNPCs()
+    {
+        List<NPCController> toRemove = new List<NPCController>();
+        
+        foreach (var npc in table.GetAllNPCs())
+        {
+            if (npc == null) continue;
+            
+            NPCChips chips = npc.GetComponent<NPCChips>();
+            if (chips == null) continue;
+            
+            if (chips.IsBroke())
+            {
+                if (!deleteNPCsOnLoss || isFinalLevel)
+                {
+                    GameDebug.LogWarning($"{npc.npcName} проиграл, но остается для финала!");
+                    npc.DiscardCards();
+                }
+                else
+                {
+                    toRemove.Add(npc);
+                }
+            }
+        }
+        
+        foreach (var npc in toRemove)
+        {
+            if (npc != null)
+            {
+                table.RemoveNPC(npc);
+                if (npc.gameObject != null)
+                    npc.gameObject.SetActive(false);
+                GameDebug.LogWarning($"{npc.npcName} покинул стол!");
+            }
+        }
+        
+        int aliveCount = 0;
+        foreach (var npc in table.GetAllNPCs())
+        {
+            if (npc != null) aliveCount++;
+        }
+        
+        return aliveCount > 0;
+    }
+    
     #endregion
 }

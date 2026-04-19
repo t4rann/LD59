@@ -12,6 +12,14 @@ public class PlayerWinEffect : MonoBehaviour
         instance = this;
     }
 
+void Start()
+{
+    if (winParticles != null)
+    {
+        winParticles.Stop();
+        winParticles.Clear();
+    }
+}
 void Update()
 {
     if (Input.GetKeyDown(KeyCode.P))

@@ -1,4 +1,3 @@
-// RoundController.cs
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -22,6 +21,9 @@ public class RoundController
     public IEnumerator DealPhase()
     {
         GameDebug.LogPhase("РАЗДАЧА КАРТ");
+        
+        // Воспроизводим звук раздачи карт один раз для всех
+        AudioManager.Instance?.PlayDealCardsSound();
         
         SubscribeToTakeCardsFinished();
         allTakeCardsFinished = false;

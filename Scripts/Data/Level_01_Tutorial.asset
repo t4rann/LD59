@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::LevelData
   levelName: Guide
   roundsCount: 5
-  anteAmount: 5
-  chipsForLevel: 25
-  npcStartingChips: 25
+  anteAmount: 10
+  chipsForLevel: 30
+  npcStartingChips: 30
   raiseAmount: 10
   isFinalLevel: 0
   isPlayerInvolved: 1

@@ -681,6 +681,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  playChipSound: 1
 --- !u!114 &273937735
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1892,6 +1893,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  playChipSound: 1
 --- !u!210 &1206010531
 SortingGroup:
   m_ObjectHideFlags: 0
@@ -2055,6 +2057,67 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TransformPoint
   isOccupied: 0
+--- !u!1 &1420485558
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1420485560}
+  - component: {fileID: 1420485559}
+  m_Layer: 0
+  m_Name: AUDIO
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1420485559
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1420485558}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7569f0d65886bed44976f6cbaf90dd17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AudioManager
+  musicSource: {fileID: 0}
+  sfxSource: {fileID: 0}
+  dealSource: {fileID: 0}
+  betSound: {fileID: 8300000, guid: efe93cb6c671c534189ad7f1a3315f3c, type: 3}
+  raiseSound: {fileID: 8300000, guid: 5aad83d3a5e5ad94ab1b74fdf45d5361, type: 3}
+  foldSound: {fileID: 8300000, guid: 5353b0d397bf14e46b724b3cf3831d9b, type: 3}
+  callSound: {fileID: 8300000, guid: 23eb2a0d031d34b4c8b7f12ee8126be3, type: 3}
+  dealCardsSound: {fileID: 8300000, guid: 5eff625ad08f45c439dd541dbcdbc6e0, type: 3}
+  chipAddSound: {fileID: 8300000, guid: e8cfca235f9dc1547877c6e3619a34ac, type: 3}
+  winSound: {fileID: 8300000, guid: 0bd79604fdf6dee4d8b5d32149372c67, type: 3}
+  playerWinSound: {fileID: 8300000, guid: 0bd79604fdf6dee4d8b5d32149372c67, type: 3}
+  npcWinSound: {fileID: 8300000, guid: fe30bfc0a0ebf7344af5736b6f76af9b, type: 3}
+  ambientLoop: {fileID: 8300000, guid: 9dd3e160bd762e24f87eb1b70d4a86e5, type: 3}
+  ambientVolume: 0.3
+  masterVolume: 1
+  musicVolume: 0.335
+  sfxVolume: 0.7
+--- !u!4 &1420485560
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1420485558}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.24526, y: 1.14188, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1541784358
 GameObject:
   m_ObjectHideFlags: 0
@@ -2602,10 +2665,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FinalSceneController
   finalNPCs: []
-  npcAnimators: []
-  defeatAnimationDelay: 4
-  defeatAnimationDuration: 4
-  gunshotSound: {fileID: 8300000, guid: 39a15fbeb7f9acc47aef4b572df7c4f2, type: 3}
+  defeatAnimationDelay: 1
+  defeatAnimationDuration: 5
+  victoryAnimationDuration: 5
+  gunshotSound: {fileID: 8300000, guid: e62a43a77bcb76f4692e58978649dc1d, type: 3}
   gunshotVolume: 1
   audioSource: {fileID: 0}
   mainCamera: {fileID: 519420031}
@@ -2986,3 +3049,4 @@ SceneRoots:
   - {fileID: 1213679223}
   - {fileID: 1845590874}
   - {fileID: 107035695}
+  - {fileID: 1420485560}

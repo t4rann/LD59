@@ -7,6 +7,9 @@ public class ShowdownController
     private PlayerChips playerChips;
     private BettingController bettingController;
     
+    [Header("Sound Settings")]
+    private bool playWinSound = true;
+    
     public ShowdownController(TableController table, BettingController bettingController)
     {
         this.table = table;
@@ -32,6 +35,10 @@ public class ShowdownController
         ShowWinnerMessage(winner, bestHandDesc, pot);
         
         PayWinner(winner, pot, bestHandDesc);
+        
+        // Воспроизводим звук победы
+        PlayWinSound(winner);
+        
         GameDebug.LogDivider();
     }
     
@@ -173,4 +180,33 @@ public class ShowdownController
             }
         }
     }
+    
+    #region Sound Methods
+    
+    private void PlayWinSound(string winner)
+    {
+        if (!playWinSound) return;
+        
+        if (AudioManager.Instance == null)
+        {
+            Debug.LogWarning("AudioManager.Instance is null, cannot play win sound");
+            return;
+        }
+        
+        // Воспроизводим разные звуки в зависимости от победителя
+        if (winner == "Вы")
+        {
+            // Звук победы игрока (триумфальный)
+            AudioManager.Instance.PlayWinSound();
+            Debug.Log("Playing player win sound!");
+        }
+        else if (!string.IsNullOrEmpty(winner))
+        {
+            // Звук победы NPC (более спокойный или грустный)
+            AudioManager.Instance.PlayNPCWinSound();
+            Debug.Log($"Playing NPC win sound for {winner}");
+        }
+    }
+    
+    #endregion
 }
