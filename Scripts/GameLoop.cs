@@ -28,7 +28,7 @@ public class GameLoop : MonoBehaviour
     
     [Header("Level Transition Effects")]
     [SerializeField] private LevelTransitionEffects transitionEffects;
-    [SerializeField] private float levelTransitionDelay = 1.5f;
+    [SerializeField] private float levelTransitionDelay = 0.5f;
     
     private RoundController roundController;
     private BettingController bettingController;
@@ -106,29 +106,36 @@ public class GameLoop : MonoBehaviour
         {
             LevelData level = levels[currentLevelIndex];
             
-            // Эффект перехода на новый уровень (кроме первого)
-            if (currentLevelIndex > 0 && transitionEffects != null)
+            // Для первого уровня - без перехода
+            if (currentLevelIndex == 0)
             {
-                yield return StartCoroutine(transitionEffects.PlayLevelTransition());
-                yield return new WaitForSeconds(levelTransitionDelay);
+                LoadNewLevel(level);
+            }
+            else
+            {
+                // Для следующих уровней - с переходом
+                if (transitionEffects != null)
+                {
+                    GameDebug.LogInfo($"Переход на уровень {currentLevelIndex + 1}...");
+                    
+                    // 1. ЗАПУСКАЕМ ПАРТИКЛ И ЗАТЕМНЕНИЕ (параллельно)
+                    yield return StartCoroutine(transitionEffects.StartTransition());
+                    
+                    // 2. В ТЕМНОТЕ загружаем новый уровень
+                    LoadNewLevel(level);
+                    
+                    // 3. ОСВЕТЛЕНИЕ - новый уровень уже на месте
+                    yield return StartCoroutine(transitionEffects.EndTransition());
+                    yield return new WaitForSeconds(levelTransitionDelay);
+                }
+                else
+                {
+                    LoadNewLevel(level);
+                }
             }
             
-            // Очищаем старых NPC перед загрузкой нового уровня
-            if (table != null)
-            {
-                table.ClearAllNPCs();
-            }
-            
-            if (levelController != null)
-            {
-                levelController.LoadLevel(level, table);
-            }
-            
-            maxRounds = level.roundsCount;
-            anteAmount = level.anteAmount;
+            // Обновляем настройки BettingController
             bettingController.SetAnteAmount(anteAmount);
-            
-            // Сбрасываем состояние BettingController
             bettingController.ResetRoundState();
             
             GameDebug.LogHeader($"УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
@@ -153,22 +160,42 @@ public class GameLoop : MonoBehaviour
             if (currentLevelIndex < levels.Length - 1)
             {
                 GameDebug.LogSuccess($"Уровень {currentLevelIndex + 1} пройден!");
-                
-                if (transitionEffects != null)
-                    yield return StartCoroutine(transitionEffects.PlayLevelComplete());
-                
-                yield return new WaitForSeconds(levelTransitionDelay);
+                yield return new WaitForSeconds(1f);
             }
         }
         
         // Финальная победа
         if (transitionEffects != null)
-            yield return StartCoroutine(transitionEffects.PlayGameComplete());
+        {
+            yield return StartCoroutine(transitionEffects.StartTransition());
+            yield return new WaitForSeconds(0.5f);
+            yield return StartCoroutine(transitionEffects.EndTransition());
+        }
         
         table.FullCleanup();
         GameDebug.LogHeader("ВСЕ УРОВНИ ПРОЙДЕНЫ! ПОБЕДА!");
         GameDebug.LogInfo("Нажми R для рестарта");
         StartCoroutine(RestartWaiter());
+    }
+    
+    private void LoadNewLevel(LevelData level)
+    {
+        // Очищаем старых NPC
+        if (table != null)
+        {
+            table.ClearAllNPCs();
+        }
+        
+        // Загружаем новый уровень (НОВЫЕ NPC ПОЯВЛЯЮТСЯ ЗДЕСЬ, в темноте)
+        if (levelController != null)
+        {
+            levelController.LoadLevel(level, table);
+        }
+        
+        // Обновляем настройки
+        maxRounds = level.roundsCount;
+        anteAmount = level.anteAmount;
+        
     }
     
     IEnumerator PlayRound(int roundNumber)
