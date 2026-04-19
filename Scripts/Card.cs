@@ -1,81 +1,64 @@
 // Card.cs
 using UnityEngine;
+using TMPro;
 
 public class Card : MonoBehaviour
 {
     public enum Suit { Hearts, Diamonds, Clubs, Spades }
     public enum Rank { Two = 2, Three, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King, Ace }
     
-    public Suit suit;
-    public Rank rank;
-    public int value;
-    public bool isFaceUp = true;
+    [Header("Card Components")]
+    public SpriteRenderer suitRenderer;
+    public TextMeshPro valueText;
+    public SpriteRenderer backgroundRenderer;
     
-    private SpriteRenderer spriteRenderer;
-    private Vector3 originalPosition;
-    private bool isMoving = false;
+    public Suit suit { get; private set; }
+    public Rank rank { get; private set; }
     
-    void Awake()
-    {
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        originalPosition = transform.position;
-    }
-    
-    public void SetCard(Suit newSuit, Rank newRank, Sprite faceSprite)
+    public void SetCard(Suit newSuit, Rank newRank, Sprite suitSprite)
     {
         suit = newSuit;
         rank = newRank;
-        value = (int)newRank;
         
-        if (spriteRenderer != null && faceSprite != null)
+        if (suitRenderer != null && suitSprite != null)
+            suitRenderer.sprite = suitSprite;
+        
+        if (valueText != null)
         {
-            spriteRenderer.sprite = faceSprite;
+            valueText.text = GetRankString(newRank);
+            // Цвет не меняем, остается тот что задан в префабе
         }
     }
     
-    public int GetValue()
+    private string GetRankString(Rank r)
     {
-        return value;
+        return r switch
+        {
+            Rank.Ace => "A",
+            Rank.King => "K",
+            Rank.Queen => "Q",
+            Rank.Jack => "J",
+            _ => ((int)r).ToString()
+        };
     }
     
     public string GetCardName()
     {
-        return $"{rank} of {suit}";
-    }
-    
-    public void MoveTo(Vector3 targetPosition, float duration)
-    {
-        if (!isMoving)
+        string suitStr = suit switch
         {
-            StartCoroutine(MoveCoroutine(targetPosition, duration));
-        }
-    }
-    
-    private System.Collections.IEnumerator MoveCoroutine(Vector3 target, float duration)
-    {
-        isMoving = true;
-        Vector3 start = transform.position;
-        float elapsed = 0f;
-        
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-            t = Mathf.SmoothStep(0f, 1f, t);
-            
-            transform.position = Vector3.Lerp(start, target, t);
-            yield return null;
-        }
-        
-        transform.position = target;
-        isMoving = false;
+            Suit.Hearts => "♥",
+            Suit.Diamonds => "♦",
+            Suit.Clubs => "♣",
+            Suit.Spades => "♠",
+            _ => ""
+        };
+        return $"{GetRankString(rank)}{suitStr}";
     }
     
     public void SetSortingOrder(int order)
     {
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.sortingOrder = order;
-        }
+        if (backgroundRenderer != null) backgroundRenderer.sortingOrder = order;
+        if (suitRenderer != null) suitRenderer.sortingOrder = order + 1;
+        if (valueText != null) valueText.sortingOrder = order + 2;
     }
 }

@@ -1,333 +1,154 @@
 // GameLoop.cs
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class GameLoop : MonoBehaviour
 {
     [Header("Table Reference")]
-    public TableController table;
+    [SerializeField] private TableController table;
     
-    [Header("Settings")]
-    public float npcTurnDelay = 1.0f;
-    public float roundDelay = 2f;
+    [Header("Round Settings")]
+    [SerializeField] private int maxRounds = 5;
+    [SerializeField] private float roundDelay = 2f;
+    [SerializeField] private int anteAmount = 10;
+    
+    [Header("Phase Delays")]
+    [SerializeField] private float dealAnimationDelay = 1.5f;
+    [SerializeField] private float emotionsPhaseDelay = 0.5f;
+    [SerializeField] private float npcTurnDelay = 1.0f;
+    
+    [Header("Visual Controllers")]
+    [SerializeField] private BankChipsVisualController bankVisual;
+    
+    private RoundController roundController;
+    private BettingController bettingController;
+    private ShowdownController showdownController;
     
     private int currentRound = 1;
-    private int maxRounds = 5;
-    private int currentBet = 0;
-    private int pot = 0;
-    
-    private PlayerAction playerAction = PlayerAction.None;
-    private bool canPlayerAct = false;
-    
-    private PlayerCardsController player;
-    
-    private Dictionary<NPCController, bool> npcTakeCardsFinished;
-    private bool allTakeCardsFinished = false;
     
     void Start()
     {
         if (table == null)
             table = FindObjectOfType<TableController>();
         
-        player = table.GetPlayer();
+        roundController = new RoundController(table, dealAnimationDelay, emotionsPhaseDelay);
+        bettingController = new BettingController(table, npcTurnDelay, anteAmount);
+        showdownController = new ShowdownController(table, bettingController);
+        
+        if (bettingController != null)
+            bettingController.OnPotChanged += OnPotChanged;
+        
         StartCoroutine(MainLoop());
     }
     
-    IEnumerator MainLoop()
+    private void OnPotChanged(int pot)
     {
-        Debug.Log("<color=yellow>=== SIGNAL TABLE ===</color>");
-        Debug.Log("Управление: 1-Fold, 2-Call, 3-Raise");
-        Debug.Log("================================\n");
-        
-        for (int round = 1; round <= maxRounds; round++)
-        {
-            yield return StartCoroutine(PlayRound(round));
-        }
-        
-        Debug.Log("<color=yellow>=== ИГРА ЗАВЕРШЕНА ===</color>");
-        Debug.Log("<color=cyan>Нажми R для рестарта</color>");
-        
-        WaitForRestart();
+        if (bankVisual != null)
+            bankVisual.UpdateBankDisplay(pot);
     }
     
-    IEnumerator PlayRound(int roundNumber)
+// GameLoop.cs - добавить FullCleanup
+
+IEnumerator MainLoop()
+{
+    GameDebug.LogHeader("SIGNAL TABLE");
+    GameDebug.LogInfo($"Управление: 1-Fold, 2-Call, 3-Raise | Анте: {anteAmount}");
+    GameDebug.LogDivider();
+    
+    for (int round = 1; round <= maxRounds; round++)
     {
-        currentRound = roundNumber;
-        pot = 0;
-        currentBet = 0;
+        if (GameManager.Instance.IsGameOver())
+            yield break;
         
-        Debug.Log($"<color=yellow>--- РАУНД {roundNumber}/{maxRounds} ---</color>");
+        yield return PlayRound(round);
         
-        // 1. Все берут карты (одновременно)
-        yield return StartCoroutine(TakeCardsPhase());
-        
-        // 2. Все показывают эмоции (одновременно)
-        ShowEmotionsPhase();
-        yield return new WaitForSeconds(0.5f);
-        
-        // 3. Ходят по очереди с интервалом
-        yield return StartCoroutine(NPCBetsPhase());
-        
-        // 4. Ход игрока
-        if (table.GetActivePlayersCount() > 0)
-        {
-            yield return StartCoroutine(PlayerTurnPhase());
-        }
-        else
-        {
-            Debug.Log("<color=cyan>Все NPC сфолдили, вы забираете банк!</color>");
-        }
-        
-        // 5. Вскрытие
-        ShowdownPhase();
-        
-        // 6. Все сбрасывают карты
-        table.DiscardAllCards();
-        table.ResetAllEmotions();
-        
-        yield return new WaitForSeconds(roundDelay);
-        Debug.Log("");
+        bettingController.CheckAndRemoveBrokeNPCs();
     }
     
-    IEnumerator TakeCardsPhase()
+    // Полная очистка в конце игры
+    table.FullCleanup();
+    
+    GameDebug.LogHeader("ИГРА ЗАВЕРШЕНА");
+    GameDebug.LogInfo("Нажми R для рестарта");
+    StartCoroutine(RestartWaiter());
+}
+    
+// GameLoop.cs - PlayRound
+
+IEnumerator PlayRound(int roundNumber)
+{
+    currentRound = roundNumber;
+    bettingController.ResetRoundState();
+    
+    if (bankVisual != null)
+        bankVisual.ClearBank();
+    
+    GameDebug.LogRound(roundNumber, maxRounds);
+    
+    if (!bettingController.RemoveBrokeNPCs())
     {
-        Debug.Log("<color=white>--- РАЗДАЧА КАРТ ---</color>");
-        
-        // Подписка на окончание анимаций NPC
-        SubscribeToTakeCardsFinished();
-        allTakeCardsFinished = false;
-        npcTakeCardsFinished = new Dictionary<NPCController, bool>();
-        foreach (var npc in table.GetAllNPCs())
-        {
-            npcTakeCardsFinished[npc] = false;
-        }
-        
-        // Раздача всем
-        table.DealNewRound();
-        
-        // Ждем пока все NPC возьмут карты
-        yield return new WaitUntil(() => allTakeCardsFinished);
-        UnsubscribeFromTakeCardsFinished();
-        
-        // Ждем пока игрок получит карты (анимация подъема)
-        yield return new WaitForSeconds(1.5f);
-        
-        Debug.Log("<color=white>Все взяли карты</color>");
+        GameDebug.LogWarning("Все NPC покинули стол!");
+        GameManager.Instance.OnGameOver?.Invoke();
+        yield break;
     }
     
-    private void SubscribeToTakeCardsFinished()
+    if (!bettingController.CollectAnte())
     {
-        foreach (var npc in table.GetAllNPCs())
-        {
-            npc.OnTakeCardsFinished += OnNPCTakeCardsFinished;
-        }
+        GameDebug.LogError("Не удалось собрать анте!");
+        GameManager.Instance.OnGameOver?.Invoke();
+        yield break;
     }
     
-    private void UnsubscribeFromTakeCardsFinished()
-    {
-        foreach (var npc in table.GetAllNPCs())
-        {
-            npc.OnTakeCardsFinished -= OnNPCTakeCardsFinished;
-        }
-    }
+    // 1. Раздача - карты появляются
+    yield return roundController.DealPhase();
     
-    private void OnNPCTakeCardsFinished(NPCController npc)
-    {
-        npcTakeCardsFinished[npc] = true;
-        
-        foreach (var finished in npcTakeCardsFinished.Values)
-        {
-            if (!finished) return;
-        }
-        
-        allTakeCardsFinished = true;
-    }
+    // 2. Эмоции
+    yield return roundController.EmotionsPhase();
     
-    private void ShowEmotionsPhase()
-    {
-        Debug.Log("<color=white>--- ЭМОЦИИ ---</color>");
-        
-        // Все NPC показывают эмоции одновременно
-        foreach (var npc in table.GetActiveNPCs())
-        {
-            npc.ShowEmotion();
-            EmotionType emotion = npc.GetCurrentEmotion();
-            string icon = GetEmotionIcon(emotion);
-            Debug.Log($"  {npc.npcName}: {icon} {emotion}");
-        }
-    }
+    // 3. Торги NPC (кто-то может сбросить карты)
+    yield return bettingController.BettingPhase();
     
-    IEnumerator NPCBetsPhase()
-    {
-        Debug.Log("<color=white>--- ХОД NPC ---</color>");
-        
-        foreach (var npc in table.GetActiveNPCs())
-        {
-            // NPC принимает решение
-            PlayerAction npcAction = npc.MakeDecision();
-            
-            string actionText = GetActionShortText(npcAction);
-            EmotionType emotion = npc.GetCurrentEmotion();
-            string icon = GetEmotionIcon(emotion);
-            
-            Debug.Log($"<color=#FFA500>{npc.npcName}: {icon} → {actionText}</color>");
-            
-            switch (npcAction)
-            {
-                case PlayerAction.Fold:
-                    npc.DiscardCards();
-                    break;
-                    
-                case PlayerAction.Call:
-                    npc.PlayCall();
-                    pot += currentBet;
-                    break;
-                    
-                case PlayerAction.Raise:
-                    npc.PlayRaise();
-                    currentBet += 10;
-                    pot += currentBet;
-                    Debug.Log($"  <color=yellow>Ставка повышена до {currentBet}!</color>");
-                    break;
-            }
-            
-            // Интервал между ходами
-            yield return new WaitForSeconds(npcTurnDelay);
-        }
-        
-        Debug.Log($"<color=white>Текущая ставка: {currentBet} | Банк: {pot}</color>");
-        Debug.Log("<color=white>--- ХОД ИГРОКА ---</color>");
-    }
+    // 4. Ход игрока (может сбросить)
+    yield return bettingController.PlayerPhase();
     
-    IEnumerator PlayerTurnPhase()
-    {
-        canPlayerAct = true;
-        playerAction = PlayerAction.None;
-        
-        Debug.Log($"<color=cyan>Ваш ход! Ставка: {currentBet} | 1-Fold, 2-Call ({currentBet}), 3-Raise (+10)</color>");
-        
-        while (playerAction == PlayerAction.None && canPlayerAct)
-        {
-            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
-                playerAction = PlayerAction.Fold;
-            else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
-                playerAction = PlayerAction.Call;
-            else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
-                playerAction = PlayerAction.Raise;
-            
-            yield return null;
-        }
-        
-        canPlayerAct = false;
-        
-        string actionText = playerAction switch
-        {
-            PlayerAction.Fold => "FOLD",
-            PlayerAction.Call => $"CALL ({currentBet})",
-            PlayerAction.Raise => $"RAISE ({currentBet + 10})",
-            _ => "???"
-        };
-        
-        Debug.Log($"<color=cyan>Вы выбрали: {actionText}</color>");
-        
-        switch (playerAction)
-        {
-            case PlayerAction.Fold:
-                player.FoldCards();
-                Debug.Log("<color=red>Вы сбросили карты</color>");
-                break;
-                
-            case PlayerAction.Call:
-                pot += currentBet;
-                break;
-                
-            case PlayerAction.Raise:
-                currentBet += 10;
-                pot += currentBet;
-                Debug.Log($"<color=yellow>Вы повысили ставку до {currentBet}!</color>");
-                break;
-        }
-    }
+    if (GameManager.Instance.IsGameOver())
+        yield break;
     
-    private void ShowdownPhase()
-    {
-        Debug.Log("<color=white>--- ВСКРЫТИЕ ---</color>");
-        
-        if (playerAction != PlayerAction.Fold)
-            Debug.Log($"  Вы: {player.GetHandDescription()}");
-        else
-            Debug.Log($"  Вы: ФОЛД");
-        
-        int strongNPCs = 0;
-        
-        foreach (var npc in table.GetAllNPCs())
-        {
-            if (npc.HasCardsActive)
-            {
-                string strengthText = npc.GetStrengthText();
-                Debug.Log($"  {npc.npcName}: {strengthText}");
-                
-                if (npc.TrueHandStrength == HandStrength.Strong)
-                    strongNPCs++;
-            }
-            else
-            {
-                Debug.Log($"  {npc.npcName}: ФОЛД");
-            }
-        }
-        
-        Debug.Log($"<color=white>Банк: {pot}</color>");
-        
-        if (playerAction != PlayerAction.Fold)
-        {
-            HandStrength playerStrength = player.GetCurrentHandStrength();
-            
-            if (playerStrength == HandStrength.Strong)
-                Debug.Log("<color=green>✓ У вас сильная рука!</color>");
-            else if (playerStrength == HandStrength.Weak)
-                Debug.Log("<color=red>✗ У вас слабая рука</color>");
-        }
-        
-        Debug.Log($"<color=grey>Сильных рук у NPC: {strongNPCs}/{table.GetAllNPCs().Count}</color>");
-    }
+    // 5. Вскрытие
+    showdownController.ShowdownPhase(bettingController.PlayerAction);       
     
-    void WaitForRestart()
-    {
-        StartCoroutine(RestartWaiter());
-    }
+    // 6. Очистка эмоций
+    roundController.CleanupPhase();
+    
+    // 7. Сброс карт - визуальные карты убираются
+    table.DiscardAllCards();
+    
+    // Ждем окончания анимации сброса
+    yield return new WaitForSeconds(3f);
+    
+// 💥 ЖЁСТКО скрываем карты
+table.HideAllNPCCards();
+
+// 🎴 СРАЗУ показываем новые карты (следующий раунд feel)
+table.ShowAllNPCCards();
+
+    yield return new WaitForSeconds(roundDelay);
+    Debug.Log("");
+}
     
     IEnumerator RestartWaiter()
     {
         while (true)
         {
             if (Input.GetKeyDown(KeyCode.R))
-            {
-                UnityEngine.SceneManagement.SceneManager.LoadScene(0);
-            }
+                GameManager.Instance.RestartGame();
             yield return null;
         }
     }
     
-    private string GetEmotionIcon(EmotionType emotion)
+    void OnDestroy()
     {
-        return emotion switch
-        {
-            EmotionType.Happy => "😊",
-            EmotionType.Neutral => "😐",
-            EmotionType.Angry => "😠",
-            _ => "❓"
-        };
-    }
-    
-    private string GetActionShortText(PlayerAction action)
-    {
-        return action switch
-        {
-            PlayerAction.Fold => "🏃 FOLD",
-            PlayerAction.Call => "✅ CALL",
-            PlayerAction.Raise => "⬆️ RAISE",
-            _ => "???"
-        };
+        if (bettingController != null)
+            bettingController.OnPotChanged -= OnPotChanged;
     }
 }

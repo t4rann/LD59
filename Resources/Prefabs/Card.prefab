@@ -297,10 +297,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8ef9aa6c620dc947974e5a08cd8588f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  suit: 0
-  rank: 0
-  value: 0
-  isFaceUp: 1
+  suitRenderer: {fileID: 8660354700836308406}
+  valueText: {fileID: 4924618118277747481}
+  backgroundRenderer: {fileID: 1373888533867189635}
 --- !u!1 &8507613575637848308
 GameObject:
   m_ObjectHideFlags: 0

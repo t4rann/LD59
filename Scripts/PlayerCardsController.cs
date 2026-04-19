@@ -2,39 +2,53 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Pixelplacement;
 
 public class PlayerCardsController : MonoBehaviour
 {
     [Header("Card Settings")]
     public GameObject cardPrefab;
-    public Transform cardSpawnPoint;
-    public Transform cardTargetPoint;
-    public Transform cardDiscardPoint;
+    public DeckManager deckManager;
+    public HandEvaluator handEvaluator;
+    
+    [Header("Positions")]
+    public Transform handPosition;      // Точка где рука держит карты
+    public Transform spawnPosition;     // Точка спавна карт (снизу)
+    public Transform despawnPosition;   // Точка сброса карт (снизу)
     
     [Header("Hand Settings")]
     public int maxCards = 5;
-    public float cardSpacing = 1.5f;
-    public float cardLiftHeight = 2f;
-    public float moveDuration = 0.5f;
+    public float cardSpacing = 1.2f;
+    public float fanStartAngle = -20f;
+    public float fanEndAngle = 20f;
+    public float verticalOffset = -0.5f;
+    
+    [Header("Animation")]
+    public float dealDuration = 0.4f;
+    public float dealDelay = 0.1f;
     public float discardDuration = 0.3f;
+    public AnimationCurve dealCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+    public AnimationCurve discardCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     
     [Header("Card Sprites")]
-    public List<Sprite> cardSprites; // Спрайты карт
+    public Sprite heartsSprite;
+    public Sprite diamondsSprite;
+    public Sprite clubsSprite;
+    public Sprite spadesSprite;
     
     private List<Card> currentCards = new List<Card>();
-    private HandStrength currentHandStrength;
+    private List<CardData> currentHandData = new List<CardData>();
+    private (HandRank rank, int value, string description) handEvaluation;
     
-    // Событие получения новой руки
-    public System.Action<HandStrength, string> OnHandReceived;
+    public System.Action<string, int> OnHandReceived;
     
     void Start()
     {
-        if (cardSpawnPoint == null)
-            cardSpawnPoint = transform;
-        if (cardTargetPoint == null)
-            cardTargetPoint = transform;
-        if (cardDiscardPoint == null)
-            cardDiscardPoint = transform;
+        if (handPosition == null) handPosition = transform;
+        if (spawnPosition == null) spawnPosition = transform;
+        if (despawnPosition == null) despawnPosition = transform;
+        if (deckManager == null) deckManager = FindObjectOfType<DeckManager>();
+        if (handEvaluator == null) handEvaluator = FindObjectOfType<HandEvaluator>();
     }
     
     public void DealNewHand()
@@ -44,84 +58,87 @@ public class PlayerCardsController : MonoBehaviour
     
     IEnumerator DealHandSequence()
     {
-        // Сначала сбрасываем старые карты
         if (currentCards.Count > 0)
         {
             yield return StartCoroutine(DiscardAllCardsSequence());
         }
         
-        // Генерируем новую руку
-        GenerateRandomHand();
+        // Берем карты из колоды
+        currentHandData = deckManager.DealCards(maxCards);
         
-        // Раздаем новые карты
-        for (int i = 0; i < maxCards; i++)
+        // Оцениваем комбинацию
+        handEvaluation = handEvaluator.EvaluateHand(currentHandData);
+        
+        // Раздаем карты
+        for (int i = 0; i < currentHandData.Count; i++)
         {
-            CreateCard(i);
-            yield return new WaitForSeconds(0.1f);
+            DealCard(i, currentHandData[i]);
+            yield return new WaitForSeconds(dealDelay);
         }
         
-        // Определяем силу руки
-        currentHandStrength = EvaluateHandStrength();
+        yield return new WaitForSeconds(dealDuration);
         
-        // Уведомляем о новой руке
         string handDescription = GetHandDescription();
-        OnHandReceived?.Invoke(currentHandStrength, handDescription);
+        OnHandReceived?.Invoke(handDescription, handEvaluation.value);
         
-        Debug.Log($"<color=cyan>Игрок получил: {handDescription}</color>");
+        GameDebug.LogPlayerHand(handDescription, handEvaluation.value);
     }
     
-    private void GenerateRandomHand()
+    private void DealCard(int index, CardData cardData)
     {
-        // Простая генерация случайных карт
-        // В будущем можно заменить на реальную колоду
-    }
-    
-    private void CreateCard(int index)
-    {
-        Vector3 spawnPos = cardSpawnPoint.position + Vector3.down * cardLiftHeight;
-        Vector3 targetPos = CalculateCardPosition(index, maxCards);
+        Vector3 targetPos = CalculateHandPosition(index);
+        Quaternion targetRot = CalculateHandRotation(index);
         
-        GameObject cardObj = Instantiate(cardPrefab, spawnPos, Quaternion.identity, transform);
+        // Спавним в точке спавна
+        GameObject cardObj = Instantiate(cardPrefab, spawnPosition.position, Quaternion.identity, handPosition);
         Card card = cardObj.GetComponent<Card>();
         
-        if (card == null)
-        {
-            card = cardObj.AddComponent<Card>();
-        }
+        if (card == null) card = cardObj.AddComponent<Card>();
         
-        // Установка случайной карты
-        Card.Suit randomSuit = (Card.Suit)Random.Range(0, 4);
-        Card.Rank randomRank = (Card.Rank)Random.Range(2, 15);
-        
-        Sprite cardSprite = GetCardSprite(randomSuit, randomRank);
-        card.SetCard(randomSuit, randomRank, cardSprite);
-        card.SetSortingOrder(index);
+        Sprite suitSprite = GetSuitSprite(cardData.suit);
+        card.SetCard(cardData.suit, cardData.rank, suitSprite);
+        card.SetSortingOrder(index * 2);
         
         currentCards.Add(card);
         
-        // Анимация подъема
-        card.MoveTo(targetPos, moveDuration);
-    }
-    
-    private Vector3 CalculateCardPosition(int index, int totalCards)
-    {
-        float startX = cardTargetPoint.position.x - (totalCards - 1) * cardSpacing / 2f;
-        float x = startX + index * cardSpacing;
-        float y = cardTargetPoint.position.y;
+        cardObj.transform.localScale = Vector3.one * 0.5f;
         
-        // Небольшой веер по rotation
-        return new Vector3(x, y, 0);
+        // Анимация к руке
+        Tween.Position(cardObj.transform, targetPos, dealDuration, 0, dealCurve);
+        Tween.Rotation(cardObj.transform, targetRot, dealDuration, 0, dealCurve);
+        Tween.LocalScale(cardObj.transform, Vector3.one, dealDuration, 0, dealCurve);
     }
     
-    private Sprite GetCardSprite(Card.Suit suit, Card.Rank rank)
+    private Vector3 CalculateHandPosition(int index)
     {
-        // Заглушка - в реальном проекте спрайты карт
-        if (cardSprites.Count > 0)
+        float totalWidth = (maxCards - 1) * cardSpacing;
+        float startX = -totalWidth / 2f;
+        float x = startX + index * cardSpacing;
+        
+        float t = Mathf.Abs((float)index / (maxCards - 1) - 0.5f) * 2f;
+        float y = verticalOffset + t * 0.1f;
+        float z = -t * 0.3f;
+        
+        return handPosition.position + new Vector3(x, y, z);
+    }
+    
+    private Quaternion CalculateHandRotation(int index)
+    {
+        float t = (float)index / (maxCards - 1);
+        float angle = Mathf.Lerp(fanStartAngle, fanEndAngle, t);
+        return Quaternion.Euler(0, 0, angle);
+    }
+    
+    private Sprite GetSuitSprite(Card.Suit suit)
+    {
+        return suit switch
         {
-            int index = ((int)suit * 13 + (int)rank - 2) % cardSprites.Count;
-            return cardSprites[index];
-        }
-        return null;
+            Card.Suit.Hearts => heartsSprite,
+            Card.Suit.Diamonds => diamondsSprite,
+            Card.Suit.Clubs => clubsSprite,
+            Card.Suit.Spades => spadesSprite,
+            _ => null
+        };
     }
     
     public void DiscardAllCards()
@@ -131,96 +148,63 @@ public class PlayerCardsController : MonoBehaviour
     
     IEnumerator DiscardAllCardsSequence()
     {
-        foreach (var card in currentCards)
+        // Сбрасываем справа налево
+        for (int i = currentCards.Count - 1; i >= 0; i--)
         {
-            if (card != null)
+            if (currentCards[i] != null)
             {
-                Vector3 discardPos = cardDiscardPoint.position + Vector3.down * cardLiftHeight;
-                card.MoveTo(discardPos, discardDuration);
+                DiscardCard(currentCards[i]);
             }
+            yield return new WaitForSeconds(dealDelay);
         }
         
-        yield return new WaitForSeconds(discardDuration);
+        yield return new WaitForSeconds(discardDuration + 0.1f);
         
         // Уничтожаем карты
         foreach (var card in currentCards)
         {
-            if (card != null)
-                Destroy(card.gameObject);
+            if (card != null) Destroy(card.gameObject);
         }
         
         currentCards.Clear();
-    }
-    
-    private HandStrength EvaluateHandStrength()
-    {
-        // Простая оценка по сумме значений
-        int totalValue = 0;
-        foreach (var card in currentCards)
-        {
-            totalValue += card.GetValue();
-        }
+        currentHandData.Clear();
         
-        if (totalValue > 45) return HandStrength.Strong;
-        if (totalValue > 30) return HandStrength.Medium;
-        return HandStrength.Weak;
+        // Возвращаем карты в колоду
+        deckManager.ResetDeck();
     }
     
-    public HandStrength GetCurrentHandStrength()
+    private void DiscardCard(Card card)
     {
-        return currentHandStrength;
+        // Анимация к точке деспавна
+        Tween.Position(card.transform, despawnPosition.position, discardDuration, 0, discardCurve);
+        Tween.LocalScale(card.transform, Vector3.one * 0.5f, discardDuration, 0, discardCurve);
     }
     
     public string GetHandDescription()
     {
         if (currentCards.Count == 0) return "Нет карт";
         
-        string desc = "";
+        string cardsStr = "";
         foreach (var card in currentCards)
         {
-            desc += GetCardShortName(card) + " ";
+            cardsStr += card.GetCardName() + " ";
         }
-        
-        return $"{desc.Trim()} | {GetStrengthText(currentHandStrength)}";
+        return $"{cardsStr.Trim()} → {handEvaluation.description}";
     }
     
-    private string GetCardShortName(Card card)
+    public int GetHandValue()
     {
-        string rankStr = card.rank switch
-        {
-            Card.Rank.Ace => "A",
-            Card.Rank.King => "K",
-            Card.Rank.Queen => "Q",
-            Card.Rank.Jack => "J",
-            _ => ((int)card.rank).ToString()
-        };
-        
-        string suitStr = card.suit switch
-        {
-            Card.Suit.Hearts => "♥",
-            Card.Suit.Diamonds => "♦",
-            Card.Suit.Clubs => "♣",
-            Card.Suit.Spades => "♠",
-            _ => ""
-        };
-        
-        return rankStr + suitStr;
+        return handEvaluation.value;
     }
     
-    private string GetStrengthText(HandStrength strength)
+    public string GetHandRankName()
     {
-        return strength switch
-        {
-            HandStrength.Weak => "СЛАБАЯ",
-            HandStrength.Medium => "СРЕДНЯЯ",
-            HandStrength.Strong => "СИЛЬНАЯ",
-            _ => "???"
-        };
+        return handEvaluation.description;
     }
     
-    public string GetStrengthText()
+    public List<CardData> GetCurrentHandData()
     {
-        return GetStrengthText(currentHandStrength);
+        return currentHandData;
     }
     
     public void FoldCards()

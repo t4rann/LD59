@@ -13,20 +13,23 @@ public class NPCController : MonoBehaviour
     public Animator handsAnimator;
     
     [Header("Current State")]
-    [SerializeField] private HandStrength trueHandStrength;
+    [SerializeField] private int currentHandValue;
     [SerializeField] private EmotionType currentEmotion;
-    
-    public HandStrength TrueHandStrength => trueHandStrength;
+
+[SerializeField] private NPCCardsVisual cardsVisual;
+
+    public int CurrentHandValue => currentHandValue;
     public EmotionType CurrentEmotion => currentEmotion;
     public bool HasCardsActive { get; private set; } = false;
     
     // События
     public System.Action<NPCController> OnTakeCardsFinished;
+    public System.Action<NPCController> OnTakeCardsStarted;
+    public System.Action<NPCController> OnCardsDiscarded;
     public System.Action<NPCController> OnEmotionShown;
     
     // Хеши
     private static readonly int EmotionHash = Animator.StringToHash("Emotion");
-    private static readonly int HasCardsHash = Animator.StringToHash("HasCards");
     private static readonly int TakeCardsTrigger = Animator.StringToHash("TakeCards");
     private static readonly int CallTrigger = Animator.StringToHash("Call");
     private static readonly int RaiseTrigger = Animator.StringToHash("Raise");
@@ -50,9 +53,12 @@ public class NPCController : MonoBehaviour
         HasCardsActive = false;
     }
     
-    public void ReceiveNewHand(HandStrength strength)
+    public void ReceiveNewHand(int handValue)
     {
-        trueHandStrength = strength;
+        currentHandValue = handValue;
+        HasCardsActive = false;
+        
+        OnTakeCardsStarted?.Invoke(this);
         
         if (handsAnimator != null)
         {
@@ -79,11 +85,6 @@ public class NPCController : MonoBehaviour
         yield return new WaitForSeconds(animationLength);
         
         HasCardsActive = true;
-        if (handsAnimator != null)
-        {
-            handsAnimator.SetBool(HasCardsHash, true);
-        }
-        
         OnTakeCardsFinished?.Invoke(this);
         takeCardsCoroutine = null;
     }
@@ -96,7 +97,7 @@ public class NPCController : MonoBehaviour
             return;
         }
         
-        currentEmotion = brain.GetDisplayedEmotion(trueHandStrength);
+        currentEmotion = brain.GetDisplayedEmotion(currentHandValue);
         
         float targetValue = currentEmotion switch
         {
@@ -164,15 +165,26 @@ public class NPCController : MonoBehaviour
     
     public void DiscardCards()
     {
+        if (!HasCardsActive) return;
+        
         HasCardsActive = false;
         
         if (handsAnimator != null)
         {
-            handsAnimator.SetBool(HasCardsHash, false);
             handsAnimator.SetTrigger(FoldTrigger);
         }
         
+        // НЕ сбрасываем эмоции здесь
+        // ResetToNeutral();
+        
+        OnCardsDiscarded?.Invoke(this);
+    }
+    
+    public void FullReset()
+    {
+        HasCardsActive = false;
         ResetToNeutral();
+        OnCardsDiscarded?.Invoke(this);
     }
     
     public PlayerAction MakeDecision()
@@ -180,18 +192,14 @@ public class NPCController : MonoBehaviour
         if (brain == null) return PlayerAction.Fold;
         
         float seed = Random.value;
-        return brain.GetAction(trueHandStrength, seed);
+        return brain.GetAction(currentHandValue, seed);
     }
     
     public string GetStrengthText()
     {
-        return trueHandStrength switch
-        {
-            HandStrength.Weak => "СЛАБАЯ",
-            HandStrength.Medium => "СРЕДНЯЯ",
-            HandStrength.Strong => "СИЛЬНАЯ",
-            _ => "???"
-        };
+        if (currentHandValue >= 300) return "СИЛЬНАЯ";
+        if (currentHandValue >= 100) return "СРЕДНЯЯ";
+        return "СЛАБАЯ";
     }
     
     void OnDestroy()

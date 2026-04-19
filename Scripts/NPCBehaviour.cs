@@ -11,37 +11,49 @@ public class NPCBehaviour : ScriptableObject
     [Header("Bluff Settings")]
     [Range(0f, 1f)]
     public float irrationalAggressionChance = 0.2f;
+    
+    [Header("Hand Strength Thresholds")]
+    public int weakThreshold = 100;   // < 100 = слабая
+    public int strongThreshold = 300; // > 300 = сильная
 
-    public EmotionType GetDisplayedEmotion(HandStrength trueStrength)
+    public EmotionType GetDisplayedEmotion(int handValue)
     {
+        bool isStrong = handValue >= strongThreshold;
+        bool isWeak = handValue < weakThreshold;
+        
         if (archetype == NPCArchetype.Truth)
         {
-            return StrengthToEmotion(trueStrength);
+            if (isStrong) return EmotionType.Happy;
+            if (isWeak) return EmotionType.Angry;
+            return EmotionType.Neutral;
         }
         else // Bluff
         {
-            if (trueStrength == HandStrength.Weak) return EmotionType.Happy;
-            if (trueStrength == HandStrength.Strong) return EmotionType.Angry;
+            if (isWeak) return EmotionType.Happy;    // Блефует силой
+            if (isStrong) return EmotionType.Angry;   // Прикидывается слабым
             return EmotionType.Neutral;
         }
     }
 
-    public PlayerAction GetAction(HandStrength trueStrength, float randomSeed)
+    public PlayerAction GetAction(int handValue, float randomSeed)
     {
-        if (trueStrength == HandStrength.Strong)
+        bool isStrong = handValue >= strongThreshold;
+        bool isWeak = handValue < weakThreshold;
+        
+        if (isStrong)
         {
             if (riskTolerance == RiskTolerance.Safe) return PlayerAction.Call;
             return PlayerAction.Raise;
         }
 
-        if (trueStrength == HandStrength.Medium)
+        if (!isStrong && !isWeak) // Medium
         {
             if (riskTolerance == RiskTolerance.Aggressive) return PlayerAction.Raise;
             if (riskTolerance == RiskTolerance.Normal) return PlayerAction.Call;
             return (randomSeed > 0.5f) ? PlayerAction.Call : PlayerAction.Fold;
         }
 
-        if (trueStrength == HandStrength.Weak)
+        if (isWeak)
         {
             if (archetype == NPCArchetype.Bluff && randomSeed < irrationalAggressionChance)
             {
@@ -51,15 +63,5 @@ public class NPCBehaviour : ScriptableObject
         }
 
         return PlayerAction.Fold;
-    }
-
-    private EmotionType StrengthToEmotion(HandStrength strength)
-    {
-        switch (strength)
-        {
-            case HandStrength.Strong: return EmotionType.Happy;
-            case HandStrength.Weak: return EmotionType.Angry;
-            default: return EmotionType.Neutral;
-        }
     }
 }

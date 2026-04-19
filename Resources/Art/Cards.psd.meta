@@ -209,7 +209,7 @@ ScriptedImporter:
     tessellationDetail: 0
     uvTransform: {x: 0, y: 0}
     spritePosition: {x: 0, y: 0}
-  - name: Cards_10
+  - name: Cards_5
     originalName: 
     pivot: {x: 0.5, y: 0.5}
     alignment: 0
@@ -217,11 +217,33 @@ ScriptedImporter:
     customData: 
     rect:
       serializedVersion: 2
-      x: 0
-      y: 903
-      width: 50
-      height: 18
-    spriteID: 9931ebe86bf6271429d6d6e2af2a7e3d
+      x: 997
+      y: 1161
+      width: 178
+      height: 241
+    spriteID: 8df9511126d80d147b6a90317f244b3d
+    spriteBone: []
+    spriteOutline: []
+    vertices: []
+    spritePhysicsOutline: []
+    indices: 
+    edges: []
+    tessellationDetail: 0
+    uvTransform: {x: 0, y: 0}
+    spritePosition: {x: 0, y: 0}
+  - name: Cards_6
+    originalName: 
+    pivot: {x: 0.5, y: 0.5}
+    alignment: 0
+    border: {x: 0, y: 0, z: 0, w: 0}
+    customData: 
+    rect:
+      serializedVersion: 2
+      x: 639
+      y: 561
+      width: 219
+      height: 119
+    spriteID: 4135c790d74c16344bf1a7ca8d81c0c7
     spriteBone: []
     spriteOutline: []
     vertices: []
