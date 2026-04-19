@@ -1,4 +1,3 @@
-// BankChipsVisualController.cs
 using UnityEngine;
 using TMPro;
 using Pixelplacement;
@@ -14,6 +13,7 @@ public class BankChipsVisualController : MonoBehaviour
     [Header("Pile Settings")]
     [SerializeField] private float pileRadius = 0.5f;
     [SerializeField] private float heightStep = 0.03f;
+    [SerializeField] private float chipScale = 0.4f;
     
     [Header("Animation")]
     [SerializeField] private float flyDuration = 0.5f;
@@ -26,6 +26,12 @@ public class BankChipsVisualController : MonoBehaviour
     {
         if (flyCurve == null || flyCurve.keys.Length == 0)
             flyCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        
+        if (chipsStackPrefab == null)
+            Debug.LogError("chipsStackPrefab not assigned in BankChipsVisualController!");
+        
+        if (bankChipsPoint == null)
+            Debug.LogError("bankChipsPoint not assigned in BankChipsVisualController!");
         
         UpdateBankText(0);
     }
@@ -41,7 +47,45 @@ public class BankChipsVisualController : MonoBehaviour
     public void UpdateBankDisplay(int pot)
     {
         UpdateBankText(pot);
+        
+        // Если пот увеличился - добавляем новые фишки
+        if (pot > lastPot)
+        {
+            int addedAmount = pot - lastPot;
+            AddChipsToBank(addedAmount);
+        }
+        // Если пот уменьшился - удаляем фишки (но по логике пот не должен уменьшаться)
+        
         lastPot = pot;
+    }
+    
+    private void AddChipsToBank(int amount)
+    {
+        if (chipsStackPrefab == null || bankChipsPoint == null) return;
+        
+        // Создаем 1 фишку за каждые 10 денег
+        int chipsToCreate = Mathf.Max(1, amount / 10);
+        
+        Debug.Log($"Adding {chipsToCreate} chips to bank for {amount} money");
+        
+        for (int i = 0; i < chipsToCreate; i++)
+        {
+            CreateNewChipInBank();
+        }
+    }
+    
+    private void CreateNewChipInBank()
+    {
+        if (chipsStackPrefab == null) return;
+        
+        GameObject chip = Instantiate(chipsStackPrefab, bankChipsPoint.position, Quaternion.identity);
+        chip.transform.SetParent(bankChipsPoint);
+        chip.transform.localScale = Vector3.one * chipScale;
+        
+        Vector3 targetPos = CalculatePilePosition(bankChips.Count);
+        Tween.Position(chip.transform, targetPos, flyDuration * 0.5f, 0, flyCurve);
+        
+        bankChips.Add(chip);
     }
     
     public void AddChip(GameObject chip, float scale)
@@ -96,6 +140,8 @@ public class BankChipsVisualController : MonoBehaviour
     
     public void ClearBank()
     {
+        Debug.Log($"Clearing bank: removing {bankChips.Count} chips");
+        
         foreach (var chip in bankChips)
         {
             if (chip != null)

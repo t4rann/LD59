@@ -1,4 +1,3 @@
-// TableController.cs
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -19,16 +18,26 @@ public class TableController : MonoBehaviour
     
     void Start()
     {
-        if (deckManager == null) deckManager = FindObjectOfType<DeckManager>();
-        if (handEvaluator == null) handEvaluator = FindObjectOfType<HandEvaluator>();
-        if (playerChips == null) playerChips = FindObjectOfType<PlayerChips>();
+        if (deckManager == null) deckManager = FindFirstObjectByType<DeckManager>();
+        if (handEvaluator == null) handEvaluator = FindFirstObjectByType<HandEvaluator>();
+        if (playerChips == null) playerChips = FindFirstObjectByType<PlayerChips>();
     }
     
+    public void AddNPC(NPCController npc)
+    {
+        if (npc != null && !allNPCs.Contains(npc))
+        {
+            allNPCs.Add(npc);
+            Debug.Log($"[Table] Добавлен NPC: {npc.npcName}");
+        }
+    }
+
     public void DealNewRound()
     {   
-        // Раздача NPC
         foreach (var npc in allNPCs)
         {
+            if (npc == null) continue;
+            
             List<CardData> hand = deckManager.DealCards(5);
             npcHands[npc] = hand;
             
@@ -41,29 +50,28 @@ public class TableController : MonoBehaviour
             npc.ReceiveNewHand(evaluation.value);
         }
         
-        // Раздача игроку
         if (playerCards != null)
         {
             playerCards.DealNewHand();
         }
     }
     
-    // 👈 НОВЫЙ МЕТОД: помечает NPC как сфолдившего (очищает его карты)
     public void MarkNPCAsFolded(NPCController npc)
     {
-        if (npcHandValues.ContainsKey(npc))
+        if (npc != null && npcHandValues.ContainsKey(npc))
         {
             npcHandValues[npc] = 0;
             npcHandDescriptions[npc] = "FOLDED";
         }
-        Debug.Log($"[Table] {npc.npcName} помечен как сфолдивший");
+        Debug.Log($"[Table] {npc?.npcName} помечен как сфолдивший");
     }
     
     public void ResetAllEmotions()
     {
         foreach (var npc in allNPCs)
         {
-            npc.ResetToNeutral();
+            if (npc != null)
+                npc.ResetToNeutral();
         }
     }
     
@@ -76,7 +84,7 @@ public class TableController : MonoBehaviour
         
         foreach (var npc in allNPCs)
         {
-            if (npc.HasCardsActive)
+            if (npc != null && npc.HasCardsActive)
             {
                 npc.DiscardCards();
             }
@@ -95,23 +103,18 @@ public class TableController : MonoBehaviour
     
     public List<NPCController> GetAllNPCs()
     {
+        allNPCs.RemoveAll(npc => npc == null);
         return allNPCs;
     }
     
     public List<NPCController> GetActiveNPCs()
     {
         List<NPCController> active = new List<NPCController>();
-        foreach (var npc in allNPCs)
+        foreach (var npc in GetAllNPCs())
         {
-            // 👈 ИСПРАВЛЕНО: проверяем HasCardsActive И значение > 0
-            if (npc.HasCardsActive && npcHandValues.ContainsKey(npc) && npcHandValues[npc] > 0)
+            if (npc != null && npc.HasCardsActive && npcHandValues.ContainsKey(npc) && npcHandValues[npc] > 0)
             {
                 active.Add(npc);
-                Debug.Log($"[Active] {npc.npcName} активен, сила: {npcHandValues[npc]}");
-            }
-            else if (npc.HasCardsActive && (!npcHandValues.ContainsKey(npc) || npcHandValues[npc] <= 0))
-            {
-                Debug.LogWarning($"[Active] {npc.npcName} имеет HasCardsActive=true но нет данных в словаре!");
             }
         }
         return active;
@@ -134,45 +137,41 @@ public class TableController : MonoBehaviour
     
     public List<CardData> GetNPCHand(NPCController npc)
     {
-        if (npcHands.ContainsKey(npc))
+        if (npc != null && npcHands.ContainsKey(npc))
             return npcHands[npc];
         return new List<CardData>();
     }
     
     public int GetNPCHandValue(NPCController npc)
     {
-        if (npcHandValues.ContainsKey(npc))
+        if (npc != null && npcHandValues.ContainsKey(npc))
             return npcHandValues[npc];
         return 0;
     }
     
     public string GetNPCHandDescription(NPCController npc)
     {
-        if (npcHandDescriptions.ContainsKey(npc))
+        if (npc != null && npcHandDescriptions.ContainsKey(npc))
             return npcHandDescriptions[npc];
         return "HIGH CARD";
     }
     
-    // 👈 ИСПРАВЛЕННЫЙ МЕТОД: возвращает корректную комбинацию
     public (int value, string description) EvaluateNPCHand(NPCController npc)
     {
         if (npc == null)
             return (0, "HIGH CARD");
         
-        // Если NPC сфолдил - возвращаем 0
         if (!npc.HasCardsActive)
         {
             return (0, "FOLDED");
         }
         
-        // Проверяем сохраненные значения
         if (npcHandValues.ContainsKey(npc) && npcHandValues[npc] > 0)
         {
             string desc = npcHandDescriptions.ContainsKey(npc) ? npcHandDescriptions[npc] : "HIGH CARD";
             return (npcHandValues[npc], desc);
         }
         
-        // Если нет сохраненного значения, но NPC активен - вычисляем заново
         if (npc.HasCardsActive && npcHands.ContainsKey(npc) && npcHands[npc] != null && npcHands[npc].Count > 0)
         {
             var evaluation = handEvaluator.EvaluateHand(npcHands[npc]);
@@ -184,22 +183,55 @@ public class TableController : MonoBehaviour
     
     public NPCChips GetNPCChips(NPCController npc)
     {
-        return npc.GetComponent<NPCChips>();
+        if (npc != null)
+            return npc.GetComponent<NPCChips>();
+        return null;
     }
     
     public void RemoveNPC(NPCController npc)
     {
-        if (allNPCs.Contains(npc))
+        if (npc != null && allNPCs.Contains(npc))
         {
+            // Удаляем данные о руке NPC
+            if (npcHands.ContainsKey(npc))
+                npcHands.Remove(npc);
+            if (npcHandValues.ContainsKey(npc))
+                npcHandValues.Remove(npc);
+            if (npcHandDescriptions.ContainsKey(npc))
+                npcHandDescriptions.Remove(npc);
+            
             allNPCs.Remove(npc);
+            Debug.Log($"[Table] NPC удален: {npc.npcName}");
         }
+    }
+    
+    public void ClearAllNPCs()
+    {
+        // Очищаем словари с данными о руках NPC
+        npcHands.Clear();
+        npcHandValues.Clear();
+        npcHandDescriptions.Clear();
+        
+        // Удаляем всех NPC из списка
+        for (int i = allNPCs.Count - 1; i >= 0; i--)
+        {
+            var npc = allNPCs[i];
+            if (npc != null)
+            {
+                RemoveNPC(npc);
+            }
+        }
+        allNPCs.Clear();
+        
+        Debug.Log("[Table] Все NPC и их данные очищены");
     }
     
     public void ShowAllNPCCards()
     {
         foreach (var npc in allNPCs)
         {
-            npc.GetComponent<NPCCardsVisual>()?.ShowCards();
+            if (npc != null)
+                npc.GetComponent<NPCCardsVisual>()?.ShowCards();
         }
     }
     
@@ -207,7 +239,8 @@ public class TableController : MonoBehaviour
     {
         foreach (var npc in allNPCs)
         {
-            npc.GetComponent<NPCCardsVisual>()?.HideCards();
+            if (npc != null)
+                npc.GetComponent<NPCCardsVisual>()?.HideCards();
         }
     }
 }

@@ -1,7 +1,7 @@
-// PlayerChipsVisualController.cs
 using UnityEngine;
 using TMPro;
 using Pixelplacement;
+using System.Collections;
 using System.Collections.Generic;
 
 public class PlayerChipsVisualController : MonoBehaviour
@@ -35,8 +35,12 @@ public class PlayerChipsVisualController : MonoBehaviour
         if (playerChips != null)
         {
             playerChips.OnChipsChanged += UpdateChipsDisplay;
-            lastChipsCount = playerChips.GetChips();
-            ShowInitialChips(lastChipsCount);
+            // Ждем один кадр, чтобы PlayerChips успел инициализироваться
+            StartCoroutine(DelayedInitialization());
+        }
+        else
+        {
+            Debug.LogError("PlayerChips component not found!");
         }
         
         if (bankTarget == null)
@@ -45,23 +49,57 @@ public class PlayerChipsVisualController : MonoBehaviour
             if (bank != null)
                 bankTarget = bank.transform;
         }
+        
+        if (chipsStackPrefab == null)
+            Debug.LogError("chipsStackPrefab not assigned in PlayerChipsVisualController!");
+        
+        if (chipsSpawnPoint == null)
+            Debug.LogError("chipsSpawnPoint not assigned in PlayerChipsVisualController!");
+    }
+    
+    private IEnumerator DelayedInitialization()
+    {
+        yield return null; // Ждем один кадр
+        
+        int initialChips = playerChips.GetChips();
+        lastChipsCount = initialChips;
+        ShowInitialChips(initialChips);
+        UpdateChipsText(initialChips);
+        
+        Debug.Log($"Initialized with {initialChips} chips");
     }
     
     private void ShowInitialChips(int chips)
     {
         UpdateChipsText(chips);
         
-        if (chipsStackPrefab != null && chipsSpawnPoint != null)
+        if (chipsStackPrefab == null || chipsSpawnPoint == null) return;
+        
+        if (chips <= 0)
         {
-            int chipsToShow = chips / 10;
-            for (int i = 0; i < chipsToShow; i++)
-            {
-                Vector3 pos = chipsSpawnPoint.position + Vector3.up * (i * stackSpacing);
-                GameObject chip = Instantiate(chipsStackPrefab, pos, Quaternion.identity);
-                chip.transform.SetParent(chipsSpawnPoint);
-                chip.transform.localScale = Vector3.one * playerChipScale;
-                activeChips.Add(chip);
-            }
+            Debug.Log("No chips to display");
+            return;
+        }
+        
+        // Показываем 1 фишку за каждые 10 фишек, но минимум 1
+        int chipsToShow = Mathf.Max(1, chips / 10);
+        
+        Debug.Log($"Creating {chipsToShow} 3D chips for {chips} total chips");
+        
+        // Очищаем старые фишки
+        foreach (var chip in activeChips)
+        {
+            if (chip != null) Destroy(chip);
+        }
+        activeChips.Clear();
+        
+        for (int i = 0; i < chipsToShow; i++)
+        {
+            Vector3 pos = chipsSpawnPoint.position + Vector3.up * (i * stackSpacing);
+            GameObject chip = Instantiate(chipsStackPrefab, pos, Quaternion.identity);
+            chip.transform.SetParent(chipsSpawnPoint);
+            chip.transform.localScale = Vector3.one * playerChipScale;
+            activeChips.Add(chip);
         }
     }
     
@@ -76,6 +114,10 @@ public class PlayerChipsVisualController : MonoBehaviour
     private void UpdateChipsDisplay(int chips)
     {
         UpdateChipsText(chips);
+        
+        if (chipsStackPrefab == null || chipsSpawnPoint == null) return;
+        
+        Debug.Log($"Chips changed from {lastChipsCount} to {chips}");
         
         if (chips < lastChipsCount)
         {
@@ -93,10 +135,16 @@ public class PlayerChipsVisualController : MonoBehaviour
     
     private void FlyChipsToBank(int amount)
     {
-        if (bankTarget == null) return;
+        if (bankTarget == null)
+        {
+            Debug.LogWarning("Bank target is null, can't fly chips");
+            return;
+        }
         
-        int chipsCount = amount / 10;
+        int chipsCount = Mathf.Max(1, amount / 10);
         int chipsToRemove = Mathf.Min(chipsCount, activeChips.Count);
+        
+        Debug.Log($"Flying {chipsToRemove} chips to bank (lost {amount})");
         
         for (int i = 0; i < chipsToRemove; i++)
         {
@@ -106,7 +154,6 @@ public class PlayerChipsVisualController : MonoBehaviour
             GameObject chip = activeChips[index];
             activeChips.RemoveAt(index);
             
-            // Анимация полета с уменьшением
             Tween.Position(chip.transform, bankTarget.position, flyDuration, 0, flyCurve);
             Tween.LocalScale(chip.transform, Vector3.one * bankChipScale, flyDuration, 0, flyCurve, 
                 Tween.LoopType.None, null, () =>
@@ -124,7 +171,9 @@ public class PlayerChipsVisualController : MonoBehaviour
     {
         if (bankTarget == null) return;
         
-        int chipsCount = amount / 10;
+        int chipsCount = Mathf.Max(1, amount / 10);
+        
+        Debug.Log($"Requesting {chipsCount} chips from bank (won {amount})");
         
         BankChipsVisualController bank = FindObjectOfType<BankChipsVisualController>();
         if (bank != null)
@@ -133,6 +182,10 @@ public class PlayerChipsVisualController : MonoBehaviour
             {
                 bank.RequestChipForPlayer(this);
             }
+        }
+        else
+        {
+            Debug.LogWarning("BankChipsVisualController not found!");
         }
     }
     
@@ -145,7 +198,6 @@ public class PlayerChipsVisualController : MonoBehaviour
         
         Vector3 targetPos = chipsSpawnPoint.position + Vector3.up * ((activeChips.Count - 1) * stackSpacing);
         
-        // Анимация полета с увеличением
         Tween.Position(chip.transform, targetPos, flyDuration, 0, flyCurve);
         Tween.LocalScale(chip.transform, Vector3.one * playerChipScale, flyDuration, 0, flyCurve);
     }

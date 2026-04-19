@@ -17,7 +17,9 @@ public class FloatingTextNPC : MonoBehaviour
     [SerializeField] private Color mediumHandColor = Color.yellow;
     [SerializeField] private Color badHandColor = Color.red;
     [SerializeField] private Color winnerColor = Color.yellow;
-    
+    [SerializeField] private Color actionColor = Color.white; // 👈 ДОБАВЬТЕ ЭТУ СТРОКУ
+
+
     private Vector3 startPosition;
     private Color startColor;
     private Coroutine currentCoroutine;
@@ -72,7 +74,54 @@ public class FloatingTextNPC : MonoBehaviour
         floatingText.gameObject.SetActive(true);
         currentCoroutine = StartCoroutine(AnimateWinnerText());
     }
+
+public void ShowAction(string action)
+{
+    if (floatingText == null) return;
     
+    if (currentCoroutine != null)
+        StopCoroutine(currentCoroutine);
+    
+    floatingText.text = action;
+    floatingText.color = actionColor;
+    startColor = actionColor;
+    
+    startPosition = transform.position + new Vector3(0, 1.2f, 0);
+    floatingText.transform.position = startPosition;
+    
+    floatingText.gameObject.SetActive(true);
+    currentCoroutine = StartCoroutine(AnimateActionText());
+}
+
+private IEnumerator AnimateActionText()
+{
+    float elapsed = 0f;
+    float actionLifetime = 0.8f;
+    
+    while (elapsed < actionLifetime)
+    {
+        elapsed += Time.deltaTime;
+        float t = elapsed / actionLifetime;
+        
+        Vector3 newPos = startPosition + Vector3.up * (t * floatSpeed * 0.5f);
+        floatingText.transform.position = newPos;
+        
+        if (t >= fadeStartTime * 0.5f)
+        {
+            float fadeT = (t - (fadeStartTime * 0.5f)) / (actionLifetime - (fadeStartTime * 0.5f));
+            Color c = floatingText.color;
+            c.a = Mathf.Lerp(startColor.a, 0f, fadeT);
+            floatingText.color = c;
+        }
+        
+        yield return null;
+    }
+    
+    floatingText.gameObject.SetActive(false);
+    floatingText.color = startColor;
+    currentCoroutine = null;
+}
+
     private IEnumerator AnimateText()
     {
         float elapsed = 0f;

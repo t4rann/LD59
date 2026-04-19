@@ -1,4 +1,3 @@
-// BettingController.cs
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -17,9 +16,10 @@ public class BettingController
     public PlayerAction PlayerAction { get; private set; } = PlayerAction.None;
     
     public System.Action<int> OnPotChanged;
-    public System.Action<string> OnPlayerRaised; // 👈 НОВОЕ СОБЫТИЕ для отслеживания рейзов
+    public System.Action<string> OnPlayerRaised;
     
     private bool canPlayerAct = false;
+    private ActionButtonsController actionButtons;
     
     public BettingController(TableController table, float turnDelay, int ante)
     {
@@ -46,13 +46,24 @@ public class BettingController
     
     #region Ante Collection
     
+    public void SetAnteAmount(int amount)
+    {
+        anteAmount = amount;
+    }
+    
     public bool CollectAnte()
     {
         GameDebug.LogPhase("СБОР АНТЕ");
         
+        if (playerChips == null)
+        {
+            GameDebug.LogError("PlayerChips не найден!");
+            return false;
+        }
+        
         if (!playerChips.HasEnoughChips(anteAmount))
         {
-            GameDebug.LogError("У вас недостаточно фишек для анте!");
+            GameDebug.LogError($"У вас недостаточно фишек для анте! Нужно: {anteAmount}, есть: {playerChips.GetChips()}");
             return false;
         }
         
@@ -60,25 +71,41 @@ public class BettingController
         AddToPot(anteAmount);
         GameDebug.LogInfo($"Вы внесли анте: {anteAmount}");
         
+        List<NPCController> npcsToRemove = new List<NPCController>();
+        
         foreach (var npc in table.GetAllNPCs())
         {
+            if (npc == null) continue;
+            
             NPCChips chips = npc.GetComponent<NPCChips>();
             
             if (chips == null)
             {
                 GameDebug.LogError($"{npc.npcName}: нет компонента фишек!");
+                npcsToRemove.Add(npc);
                 continue;
             }
             
             if (!chips.HasEnoughChips(anteAmount))
             {
-                GameDebug.LogWarning($"{npc.npcName}: недостаточно фишек для анте, покидает стол!");
+                GameDebug.LogWarning($"{npc.npcName}: недостаточно фишек для анте ({chips.GetChips()}/{anteAmount}), покидает стол!");
+                npcsToRemove.Add(npc);
                 continue;
             }
             
             chips.RemoveChips(anteAmount);
             AddToPot(anteAmount);
             GameDebug.LogInfo($"  {npc.npcName} внес анте: {anteAmount}");
+        }
+        
+        foreach (var npc in npcsToRemove)
+        {
+            if (npc != null)
+            {
+                table.RemoveNPC(npc);
+                if (npc.gameObject != null)
+                    npc.gameObject.SetActive(false);
+            }
         }
         
         GameDebug.LogSuccess($"Банк после сбора анте: {Pot}");
@@ -88,6 +115,7 @@ public class BettingController
     #endregion
     
     #region Betting Phases
+    
     public void ResetPot()
     {
         Pot = 0;
@@ -101,6 +129,7 @@ public class BettingController
         
         foreach (var npc in table.GetActiveNPCs())
         {
+            if (npc == null) continue;
             yield return ProcessNPCTurn(npc);
             yield return new WaitForSeconds(npcTurnDelay);
         }
@@ -114,7 +143,10 @@ public class BettingController
         if (table.GetActivePlayersCount() == 0)
         {
             GameDebug.LogSuccess("Все NPC сфолдили, вы забираете банк!");
-            playerChips.AddChips(Pot);
+            if (playerChips != null)
+            {
+                playerChips.AddChips(Pot);
+            }
             Pot = 0;
             OnPotChanged?.Invoke(Pot);
             yield break;
@@ -122,7 +154,7 @@ public class BettingController
         
         yield return ProcessPlayerTurn();
         
-        if (playerChips.IsBroke())
+        if (playerChips != null && playerChips.IsBroke())
         {
             GameManager.Instance.PlayerOutOfChips();
         }
@@ -134,6 +166,8 @@ public class BettingController
     
     private IEnumerator ProcessNPCTurn(NPCController npc)
     {
+        if (npc == null) yield break;
+        
         NPCChips chips = npc.GetComponent<NPCChips>();
         
         if (chips == null || chips.IsBroke())
@@ -153,6 +187,8 @@ public class BettingController
         EmotionType emotion = npc.GetCurrentEmotion();
         
         GameDebug.LogNPCAction(npc.npcName, emotion, action);
+        
+        npc.ShowAction(action);
         ExecuteNPCAction(npc, chips, action);
     }
     
@@ -201,7 +237,7 @@ public class BettingController
                 CurrentBet = raiseAmount;
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
-                OnPlayerRaised?.Invoke(npc.npcName); // 👈 ЗАПИСЫВАЕМ РЕЙЗ NPC
+                OnPlayerRaised?.Invoke(npc.npcName);
                 break;
         }
     }
@@ -215,44 +251,68 @@ public class BettingController
         canPlayerAct = true;
         PlayerAction = PlayerAction.None;
         
-        GameDebug.LogPlayerTurn(CurrentBet, player.GetHandValue(), playerChips.GetChips());
+        if (actionButtons != null)
+        {
+            actionButtons.UpdateButtonsState(CurrentBet);
+        }
+        
+        GameDebug.LogPlayerTurn(CurrentBet, player != null ? player.GetHandValue() : 0, playerChips != null ? playerChips.GetChips() : 0);
         
         while (PlayerAction == PlayerAction.None && canPlayerAct)
         {
-            PlayerAction = GetPlayerInput();
+            if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+            {
+                PlayerAction = PlayerAction.Fold;
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
+            {
+                if (playerChips != null && playerChips.HasEnoughChips(CurrentBet))
+                    PlayerAction = PlayerAction.Call;
+                else
+                    GameDebug.LogWarning("Недостаточно фишек для Call!");
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
+            {
+                int raiseAmount = CurrentBet + 10;
+                if (playerChips != null && playerChips.HasEnoughChips(raiseAmount))
+                    PlayerAction = PlayerAction.Raise;
+                else
+                    GameDebug.LogWarning("Недостаточно фишек для Raise!");
+            }
+            
             yield return null;
         }
         
         canPlayerAct = false;
         ExecutePlayerAction();
-        GameDebug.LogChips(playerChips.GetChips());
+        if (playerChips != null)
+            GameDebug.LogChips(playerChips.GetChips());
     }
     
-    private PlayerAction GetPlayerInput()
+    public void SetPlayerAction(PlayerAction action)
     {
-        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
+        if (canPlayerAct)
         {
-            return PlayerAction.Fold;
+            switch (action)
+            {
+                case PlayerAction.Fold:
+                    PlayerAction = action;
+                    break;
+                case PlayerAction.Call:
+                    if (playerChips != null && playerChips.HasEnoughChips(CurrentBet))
+                        PlayerAction = action;
+                    else
+                        GameDebug.LogWarning("Недостаточно фишек для Call!");
+                    break;
+                case PlayerAction.Raise:
+                    int raiseAmount = CurrentBet + 10;
+                    if (playerChips != null && playerChips.HasEnoughChips(raiseAmount))
+                        PlayerAction = action;
+                    else
+                        GameDebug.LogWarning("Недостаточно фишек для Raise!");
+                    break;
+            }
         }
-        
-        if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2))
-        {
-            if (playerChips.HasEnoughChips(CurrentBet))
-                return PlayerAction.Call;
-            else
-                GameDebug.LogWarning("Недостаточно фишек для Call!");
-        }
-        
-        if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
-        {
-            int raiseAmount = CurrentBet + 10;
-            if (playerChips.HasEnoughChips(raiseAmount))
-                return PlayerAction.Raise;
-            else
-                GameDebug.LogWarning("Недостаточно фишек для Raise!");
-        }
-        
-        return PlayerAction.None;
     }
     
     private void ExecutePlayerAction()
@@ -262,22 +322,25 @@ public class BettingController
         switch (PlayerAction)
         {
             case PlayerAction.Fold:
-                player.FoldCards();
+                if (player != null)
+                    player.FoldCards();
                 GameDebug.LogWarning("Вы сбросили карты");
                 break;
                 
             case PlayerAction.Call:
-                playerChips.RemoveChips(CurrentBet);
+                if (playerChips != null)
+                    playerChips.RemoveChips(CurrentBet);
                 AddToPot(CurrentBet);
                 break;
                 
             case PlayerAction.Raise:
                 int raiseAmount = CurrentBet + 10;
-                playerChips.RemoveChips(raiseAmount);
+                if (playerChips != null)
+                    playerChips.RemoveChips(raiseAmount);
                 CurrentBet = raiseAmount;
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
-                OnPlayerRaised?.Invoke("Игрок"); // 👈 ЗАПИСЫВАЕМ РЕЙЗ ИГРОКА
+                OnPlayerRaised?.Invoke("Игрок");
                 break;
         }
     }
@@ -292,6 +355,8 @@ public class BettingController
         
         foreach (var npc in table.GetAllNPCs())
         {
+            if (npc == null) continue;
+            
             NPCChips chips = npc.GetComponent<NPCChips>();
             if (chips != null && chips.IsBroke())
             {
@@ -301,7 +366,8 @@ public class BettingController
         
         foreach (var npc in brokeNPCs)
         {
-            GameManager.Instance.NPCOutOfChips(npc);
+            if (npc != null)
+                GameManager.Instance.NPCOutOfChips(npc);
         }
     }
 
@@ -310,8 +376,7 @@ public class BettingController
         List<NPCController> active = new List<NPCController>();
         foreach (var npc in table.GetAllNPCs())
         {
-            // Только те, у кого есть карты (не сфолдили)
-            if (npc.HasCardsActive)
+            if (npc != null && npc.HasCardsActive)
                 active.Add(npc);
         }
         return active;
@@ -323,6 +388,8 @@ public class BettingController
         
         foreach (var npc in table.GetAllNPCs())
         {
+            if (npc == null) continue;
+            
             NPCChips chips = npc.GetComponent<NPCChips>();
             if (chips == null) continue;
             
@@ -334,12 +401,22 @@ public class BettingController
         
         foreach (var npc in toRemove)
         {
-            table.RemoveNPC(npc);
-            npc.gameObject.SetActive(false);
-            GameDebug.LogWarning($"{npc.npcName} покинул стол!");
+            if (npc != null)
+            {
+                table.RemoveNPC(npc);
+                if (npc.gameObject != null)
+                    npc.gameObject.SetActive(false);
+                GameDebug.LogWarning($"{npc.npcName} покинул стол!");
+            }
         }
         
-        return table.GetAllNPCs().Count > 0;
+        int aliveCount = 0;
+        foreach (var npc in table.GetAllNPCs())
+        {
+            if (npc != null) aliveCount++;
+        }
+        
+        return aliveCount > 0;
     }
     
     #endregion
@@ -349,6 +426,11 @@ public class BettingController
     public void SetNPCTurnDelay(float delay)
     {
         npcTurnDelay = delay;
+    }
+    
+    public void SetActionButtons(ActionButtonsController buttons)
+    {
+        actionButtons = buttons;
     }
     
     #endregion

@@ -77,7 +77,21 @@ public class NPCController : MonoBehaviour
             
         takeCardsCoroutine = StartCoroutine(TakeCardsSequence());
     }
+
+public void ShowAction(PlayerAction action)
+{
+    string actionText = action switch
+    {
+        PlayerAction.Fold => "FOLD",
+        PlayerAction.Call => "CALL",
+        PlayerAction.Raise => "RAISE",
+        _ => ""
+    };
     
+    if (!string.IsNullOrEmpty(actionText) && floatingText != null)
+        floatingText.ShowAction(actionText);
+}
+
     private IEnumerator TakeCardsSequence()
     {
         yield return null;
