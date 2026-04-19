@@ -1,4 +1,3 @@
-// PlayerChips.cs
 using UnityEngine;
 using TMPro;
 using Pixelplacement;
@@ -6,11 +5,11 @@ using Pixelplacement;
 public class PlayerChips : MonoBehaviour
 {
     [Header("Starting Chips")]
-    [SerializeField] private int startingChips = 100;
+    [SerializeField] private int startingChips = 100;  // Начальные фишки для первого уровня
     
     [Header("Visuals")]
-    [SerializeField] private GameObject chipsVisual;      // Спрайт фишки
-    [SerializeField] private TextMeshPro chipsText;       // TextMeshPro в мире
+    [SerializeField] private GameObject chipsVisual;
+    [SerializeField] private TextMeshPro chipsText;
     
     [Header("Animation")]
     [SerializeField] private float punchScale = 1.3f;
@@ -44,7 +43,6 @@ public class PlayerChips : MonoBehaviour
     {
         if (chipsVisual == null) return;
         
-        // Анимация увеличения спрайта фишки
         Tween.LocalScale(chipsVisual.transform, 
             originalScale * punchScale, 
             animationDuration * 0.5f, 
@@ -54,7 +52,6 @@ public class PlayerChips : MonoBehaviour
             null, 
             () => 
             {
-                // Возвращаем к исходному размеру
                 Tween.LocalScale(chipsVisual.transform, 
                     originalScale, 
                     animationDuration * 0.5f, 
@@ -98,6 +95,15 @@ public class PlayerChips : MonoBehaviour
     public bool IsBroke()
     {
         return currentChips <= 0;
+    }
+    
+    public void SetChipsForLevel(int chips)
+    {
+        currentChips = chips;
+        UpdateChipsDisplay();
+        AnimateChipsChange();
+        OnChipsChanged?.Invoke(currentChips);
+        GameDebug.LogSuccess($"Выдано {chips} фишек на уровень");
     }
     
     public void ResetChips()

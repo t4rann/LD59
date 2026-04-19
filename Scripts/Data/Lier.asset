@@ -14,7 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NPCBehaviour
   behaviourName: 1
   archetype: 1
-  riskTolerance: 1
+  riskTolerance: 2
   irrationalAggressionChance: 0.4
   weakThreshold: 100
   strongThreshold: 300
+  baseFoldChance: 0.7
+  foldReductionPerFold: 0.1
+  minFoldChance: 0.2
+  weakHandCallChance: 0.3
+  weakHandRaiseChance: 0.1
+  mediumHandCallChance: 0.5
+  mediumHandRaiseChance: 0.3

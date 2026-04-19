@@ -50,12 +50,16 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4191614480979061784, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
       propertyPath: m_Name
-      value: Noob
+      value: Truth
       objectReference: {fileID: 0}
     - target: {fileID: 4284189782808336306, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
       propertyPath: brain
       value: 
       objectReference: {fileID: 11400000, guid: 2ac6285aa12932b4db34cb395808a119, type: 2}
+    - target: {fileID: 8813589132642129453, guid: 71a9fb8d9bd090443b176e01afcb88ed, type: 3}
+      propertyPath: startingChips
+      value: 5
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

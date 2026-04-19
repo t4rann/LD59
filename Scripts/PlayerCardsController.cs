@@ -1,4 +1,3 @@
-// PlayerCardsController.cs
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -39,6 +38,7 @@ public class PlayerCardsController : MonoBehaviour
     private List<Card> currentCards = new List<Card>();
     private List<CardData> currentHandData = new List<CardData>();
     private (HandRank rank, int value, string description) handEvaluation;
+    private bool isFolded = false;  // Флаг фолда
     
     public System.Action<string, int> OnHandReceived;
     
@@ -51,8 +51,19 @@ public class PlayerCardsController : MonoBehaviour
         if (handEvaluator == null) handEvaluator = FindObjectOfType<HandEvaluator>();
     }
     
+    public bool IsFolded()
+    {
+        return isFolded;
+    }
+    
+    public void ResetFoldState()
+    {
+        isFolded = false;
+    }
+    
     public void DealNewHand()
     {
+        isFolded = false;  // Сбрасываем фолд при новой раздаче
         StartCoroutine(DealHandSequence());
     }
     
@@ -209,6 +220,35 @@ public class PlayerCardsController : MonoBehaviour
     
     public void FoldCards()
     {
+        isFolded = true;  // Устанавливаем флаг фолда
         StartCoroutine(DiscardAllCardsSequence());
+    }
+    
+    // Сброс всех карт без установки флага фолда (используется при очистке)
+    public void ResetCards()
+    {
+        StartCoroutine(ResetCardsSequence());
+    }
+    
+    private IEnumerator ResetCardsSequence()
+    {
+        for (int i = currentCards.Count - 1; i >= 0; i--)
+        {
+            if (currentCards[i] != null)
+            {
+                DiscardCard(currentCards[i]);
+            }
+            yield return new WaitForSeconds(dealDelay);
+        }
+        
+        yield return new WaitForSeconds(discardDuration + 0.1f);
+        
+        foreach (var card in currentCards)
+        {
+            if (card != null) Destroy(card.gameObject);
+        }
+        
+        currentCards.Clear();
+        currentHandData.Clear();
     }
 }

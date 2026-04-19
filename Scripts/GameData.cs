@@ -10,7 +10,11 @@ public enum EmotionType
 {
     Happy,
     Neutral,
-    Angry
+    Angry,
+    Sigma,      // Сигма - надменность/безразличие
+    Scared,     // Паникер - страх
+    Worried,    // Паникер - беспокойство
+    Evil        // Негодяй - злой/преступный
 }
 
 public enum PlayerAction
@@ -23,8 +27,11 @@ public enum PlayerAction
 
 public enum NPCArchetype
 {
-    Truth,
-    Bluff
+    Truth,      // Честный - эмоция соответствует руке
+    Bluff,      // Блефующий - показывает противоположное
+    Sigma,      // Сигма - всегда показывает Sigma эмоцию
+    Panicker,   // Паникер - боится проиграть
+    Villain     // Негодяй - злой
 }
 
 public enum RiskTolerance

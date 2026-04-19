@@ -10,6 +10,7 @@ public class BettingController
     
     private float npcTurnDelay;
     private int anteAmount;
+    private int raiseAmount = 10;
     
     public int CurrentBet { get; private set; } = 0;
     public int Pot { get; private set; } = 0;
@@ -20,6 +21,8 @@ public class BettingController
     
     private bool canPlayerAct = false;
     private ActionButtonsController actionButtons;
+    private bool waitingForNPCsAfterRaise = false;
+    private bool playerIsBrokeThisRound = false; // Флаг, что игрок проиграл фишки в этом раунде
     
     public BettingController(TableController table, float turnDelay, int ante)
     {
@@ -35,7 +38,20 @@ public class BettingController
         Pot = 0;
         CurrentBet = 0;
         PlayerAction = PlayerAction.None;
+        waitingForNPCsAfterRaise = false;
+        playerIsBrokeThisRound = false;
         OnPotChanged?.Invoke(Pot);
+    }
+    
+    public void SetRaiseAmount(int amount)
+    {
+        raiseAmount = amount;
+        GameDebug.LogInfo($"Высота рейза установлена: {raiseAmount}");
+    }
+    
+    public int GetRaiseAmount()
+    {
+        return raiseAmount;
     }
     
     private void AddToPot(int amount)
@@ -138,6 +154,22 @@ public class BettingController
         GameDebug.LogPhase("ХОД ИГРОКА");
     }
     
+    public IEnumerator AfterPlayerRaisePhase()
+    {
+        GameDebug.LogPhase("NPC ОТВЕЧАЮТ НА РЕЙЗ");
+        waitingForNPCsAfterRaise = true;
+        
+        foreach (var npc in table.GetActiveNPCs())
+        {
+            if (npc == null) continue;
+            yield return ProcessNPCTurnAfterRaise(npc);
+            yield return new WaitForSeconds(npcTurnDelay);
+        }
+        
+        waitingForNPCsAfterRaise = false;
+        GameDebug.LogBetInfo(CurrentBet, Pot);
+    }
+    
     public IEnumerator PlayerPhase()
     {
         if (table.GetActivePlayersCount() == 0)
@@ -154,8 +186,22 @@ public class BettingController
         
         yield return ProcessPlayerTurn();
         
+        // Если игрок сделал рейз, даем NPC возможность ответить
+        if (PlayerAction == PlayerAction.Raise && table.GetActivePlayersCount() > 0)
+        {
+            GameDebug.LogInfo("Игрок сделал рейз! NPC отвечают...");
+            yield return AfterPlayerRaisePhase();
+        }
+        
+        // НЕ проверяем здесь проигрыш игрока! Только после вскрытия
+    }
+    
+    // Проверка проигрыша игрока ПОСЛЕ вскрытия
+    public void CheckPlayerLossAfterShowdown()
+    {
         if (playerChips != null && playerChips.IsBroke())
         {
+            GameDebug.LogError("Игрок проиграл все фишки после раунда!");
             GameManager.Instance.PlayerOutOfChips();
         }
     }
@@ -192,14 +238,52 @@ public class BettingController
         ExecuteNPCAction(npc, chips, action);
     }
     
+    private IEnumerator ProcessNPCTurnAfterRaise(NPCController npc)
+    {
+        if (npc == null) yield break;
+        
+        NPCChips chips = npc.GetComponent<NPCChips>();
+        
+        if (chips == null || chips.IsBroke())
+        {
+            npc.DiscardCards();
+            GameDebug.LogWarning($"{npc.npcName}: Нет фишек, фолд");
+            yield break;
+        }
+        
+        if (!npc.HasCardsActive)
+        {
+            yield break;
+        }
+        
+        int neededAmount = CurrentBet;
+        
+        if (!chips.HasEnoughChips(neededAmount))
+        {
+            GameDebug.LogWarning($"{npc.npcName}: Не хватает фишек для колла ({chips.GetChips()}/{neededAmount}), фолд");
+            npc.DiscardCards();
+            npc.IncrementConsecutiveFolds();
+            yield break;
+        }
+        
+        GameDebug.LogNPCAction(npc.npcName, npc.GetCurrentEmotion(), PlayerAction.Call);
+        npc.ShowAction(PlayerAction.Call);
+        npc.PlayCall();
+        chips.RemoveChips(neededAmount);
+        AddToPot(neededAmount);
+        npc.ResetConsecutiveFolds();
+        
+        GameDebug.LogInfo($"{npc.npcName} отвечает на рейз: CALL {neededAmount}");
+    }
+    
     private PlayerAction GetValidNPCAction(NPCController npc, NPCChips chips)
     {
         PlayerAction action = npc.MakeDecision();
         
         if (action == PlayerAction.Raise)
         {
-            int raiseAmount = CurrentBet + 10;
-            if (!chips.HasEnoughChips(raiseAmount))
+            int raiseAmountValue = CurrentBet + raiseAmount;
+            if (!chips.HasEnoughChips(raiseAmountValue))
             {
                 action = PlayerAction.Call;
             }
@@ -222,22 +306,25 @@ public class BettingController
         {
             case PlayerAction.Fold:
                 npc.DiscardCards();
+                npc.IncrementConsecutiveFolds();
                 break;
                 
             case PlayerAction.Call:
                 npc.PlayCall();
                 chips.RemoveChips(CurrentBet);
                 AddToPot(CurrentBet);
+                npc.ResetConsecutiveFolds();
                 break;
                 
             case PlayerAction.Raise:
                 npc.PlayRaise();
-                int raiseAmount = CurrentBet + 10;
-                chips.RemoveChips(raiseAmount);
-                CurrentBet = raiseAmount;
+                int raiseAmountValue = CurrentBet + raiseAmount;
+                chips.RemoveChips(raiseAmountValue);
+                CurrentBet = raiseAmountValue;
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
                 OnPlayerRaised?.Invoke(npc.npcName);
+                npc.ResetConsecutiveFolds();
                 break;
         }
     }
@@ -273,8 +360,8 @@ public class BettingController
             }
             else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3))
             {
-                int raiseAmount = CurrentBet + 10;
-                if (playerChips != null && playerChips.HasEnoughChips(raiseAmount))
+                int raiseAmountValue = CurrentBet + raiseAmount;
+                if (playerChips != null && playerChips.HasEnoughChips(raiseAmountValue))
                     PlayerAction = PlayerAction.Raise;
                 else
                     GameDebug.LogWarning("Недостаточно фишек для Raise!");
@@ -305,8 +392,8 @@ public class BettingController
                         GameDebug.LogWarning("Недостаточно фишек для Call!");
                     break;
                 case PlayerAction.Raise:
-                    int raiseAmount = CurrentBet + 10;
-                    if (playerChips != null && playerChips.HasEnoughChips(raiseAmount))
+                    int raiseAmountValue = CurrentBet + raiseAmount;
+                    if (playerChips != null && playerChips.HasEnoughChips(raiseAmountValue))
                         PlayerAction = action;
                     else
                         GameDebug.LogWarning("Недостаточно фишек для Raise!");
@@ -334,10 +421,10 @@ public class BettingController
                 break;
                 
             case PlayerAction.Raise:
-                int raiseAmount = CurrentBet + 10;
+                int raiseAmountValue = CurrentBet + raiseAmount;
                 if (playerChips != null)
-                    playerChips.RemoveChips(raiseAmount);
-                CurrentBet = raiseAmount;
+                    playerChips.RemoveChips(raiseAmountValue);
+                CurrentBet = raiseAmountValue;
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
                 OnPlayerRaised?.Invoke("Игрок");

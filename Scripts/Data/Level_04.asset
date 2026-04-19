@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 85679a53ce92621438eeae2673f0f60f, type: 3}
-  m_Name: Level_01_Tutorial
+  m_Name: Level_04
   m_EditorClassIdentifier: Assembly-CSharp::LevelData
   levelName: Guide
-  roundsCount: 1
-  anteAmount: 5
+  roundsCount: 5
+  anteAmount: 10
   npcSetups:
-  - npcPrefab: {fileID: 7078771711014094203, guid: 09639496ce37c184194fc2be64d36020, type: 3}
-    npcBrain: {fileID: 11400000, guid: 2ac6285aa12932b4db34cb395808a119, type: 2}
+  - npcPrefab: {fileID: 1650629172590557201, guid: e8b876889be369c4895f7d805359082a, type: 3}
+    npcBrain: {fileID: 11400000, guid: 067bbf5965832dd4894aa1c692e96dba, type: 2}
     spawnPoint: {fileID: 0}

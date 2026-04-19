@@ -10,6 +10,7 @@ public class LevelTransitionEffects : MonoBehaviour
     
     [Header("Particle Effects")]
     [SerializeField] private ParticleSystem transitionParticles;
+    [SerializeField] private ParticleSystem levelCompleteParticles;  // Партикл для завершения уровня
     [SerializeField] private float particleStartDelay = 0.2f;
     
     [Header("Visual Elements")]
@@ -23,62 +24,81 @@ public class LevelTransitionEffects : MonoBehaviour
     {
         mainCamera = Camera.main;
         
-        // Останавливаем партикл при старте, но оставляем объект включенным
         if (transitionParticles != null)
         {
             transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             transitionParticles.Clear();
-            // Убеждаемся что партикл не проигрывается
             transitionParticles.gameObject.SetActive(true);
-            Debug.Log("[Transition] Партикл подготовлен (остановлен)");
+        }
+        
+        if (levelCompleteParticles != null)
+        {
+            levelCompleteParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            levelCompleteParticles.Clear();
         }
     }
     
     void Start()
     {
-        // Дополнительная остановка на всякий случай
         if (transitionParticles != null)
         {
             transitionParticles.Stop();
             transitionParticles.Clear();
+        }
+        
+        if (levelCompleteParticles != null)
+        {
+            levelCompleteParticles.Stop();
+            levelCompleteParticles.Clear();
+        }
+    }
+    
+    // Эффект завершения уровня
+    public IEnumerator PlayLevelComplete()
+    {
+        Debug.Log("[Transition] Воспроизведение эффекта завершения уровня");
+        
+        // Запускаем партикл завершения уровня
+        if (levelCompleteParticles != null)
+        {
+            levelCompleteParticles.Clear();
+            levelCompleteParticles.Play();
+        }
+        
+        // Небольшая задержка
+        yield return new WaitForSeconds(0.5f);
+        
+        // Останавливаем партикл
+        if (levelCompleteParticles != null)
+        {
+            levelCompleteParticles.Stop();
         }
     }
     
     // Запуск перехода - затемнение
     public IEnumerator StartTransition()
     {
-        // Запускаем партикл ЗАДОЛГО до затемнения
         if (transitionParticles != null)
         {
-            // Очищаем старые частицы
             transitionParticles.Clear();
-            
-            // Запускаем партикл
             transitionParticles.Play();
             Debug.Log("[Transition] Партикл запущен");
         }
         
-        // Ждем указанную задержку перед началом затемнения
         if (particleStartDelay > 0)
         {
-            Debug.Log($"[Transition] Ожидание {particleStartDelay} сек перед затемнением");
             yield return new WaitForSeconds(particleStartDelay);
         }
         
-        // Затемнение
         yield return StartCoroutine(FadeToBlack());
-        
-        // Выключаем визуальные элементы в темноте
         DisableVisualElements();
     }
     
     // Завершение перехода - осветление
     public IEnumerator EndTransition()
     {
-        // Осветление
         yield return StartCoroutine(FadeFromBlack());
         
-        // Останавливаем партикл после осветления
         if (transitionParticles != null)
         {
             transitionParticles.Stop();
@@ -108,7 +128,6 @@ public class LevelTransitionEffects : MonoBehaviour
     {
         if (fadePanel == null) yield break;
         
-        // Включаем визуальные элементы нового уровня ПЕРЕД осветлением
         EnableVisualElements();
         
         float elapsed = 0f;
@@ -131,7 +150,6 @@ public class LevelTransitionEffects : MonoBehaviour
     
     private void DisableVisualElements()
     {
-        // Отключаем рендеры у всех NPC
         NPCController[] npcs = FindObjectsByType<NPCController>(FindObjectsSortMode.None);
         foreach (var npc in npcs)
         {
@@ -146,7 +164,6 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
-        // Отключаем рендеры у игрока
         PlayerCardsController player = FindFirstObjectByType<PlayerCardsController>();
         if (player != null)
         {
@@ -158,7 +175,6 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
-        // Отключаем фишки в банке
         BankChipsVisualController bank = FindFirstObjectByType<BankChipsVisualController>();
         if (bank != null)
         {
@@ -170,14 +186,12 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
-        // Отключаем кнопки действий
         ActionButtonsController buttons = FindFirstObjectByType<ActionButtonsController>();
         if (buttons != null)
         {
             buttons.ShowButtons(false);
         }
         
-        // Отключаем дополнительные визуальные элементы
         foreach (var element in additionalVisualElements)
         {
             if (element != null)
@@ -196,7 +210,6 @@ public class LevelTransitionEffects : MonoBehaviour
     
     private void EnableVisualElements()
     {
-        // Включаем рендеры у всех NPC
         NPCController[] npcs = FindObjectsByType<NPCController>(FindObjectsSortMode.None);
         foreach (var npc in npcs)
         {
@@ -211,7 +224,6 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
-        // Включаем рендеры у игрока
         PlayerCardsController player = FindFirstObjectByType<PlayerCardsController>();
         if (player != null)
         {
@@ -223,7 +235,6 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
-        // Включаем фишки в банке
         BankChipsVisualController bank = FindFirstObjectByType<BankChipsVisualController>();
         if (bank != null)
         {
@@ -235,7 +246,6 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
-        // Включаем дополнительные визуальные элементы
         foreach (var element in additionalVisualElements)
         {
             if (element != null)
@@ -281,6 +291,12 @@ public class LevelTransitionEffects : MonoBehaviour
         {
             transitionParticles.Stop();
             transitionParticles.Clear();
+        }
+        
+        if (levelCompleteParticles != null)
+        {
+            levelCompleteParticles.Stop();
+            levelCompleteParticles.Clear();
         }
         
         EnableVisualElements();

@@ -1,4 +1,3 @@
-// NPCChips.cs
 using UnityEngine;
 
 public class NPCChips : MonoBehaviour
@@ -13,7 +12,7 @@ public class NPCChips : MonoBehaviour
     
     void Awake()
     {
-        currentChips = startingChips; // Инициализация в Awake
+        currentChips = startingChips;
         npcController = GetComponent<NPCController>();
     }
     
@@ -52,6 +51,13 @@ public class NPCChips : MonoBehaviour
     
     public void ResetChips()
     {
+        currentChips = startingChips;
+        OnChipsChanged?.Invoke(npcController, currentChips);
+    }
+    
+    public void SetStartingChips(int chips)
+    {
+        startingChips = chips;
         currentChips = startingChips;
         OnChipsChanged?.Invoke(npcController, currentChips);
     }

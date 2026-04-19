@@ -35,32 +35,31 @@ public class ShowdownController
         GameDebug.LogDivider();
     }
     
-private void ShowWinnerMessage(string winner, string handDescription, int potAmount)
-{
-    if (winner == "Вы")
+    private void ShowWinnerMessage(string winner, string handDescription, int potAmount)
     {
-        PlayerWinEffect.PlayWinEffect();
-        GameDebug.LogWinner("Вы", potAmount, handDescription);
-    }
-    else if (!string.IsNullOrEmpty(winner))
-    {
-        foreach (var npc in table.GetAllNPCs())
+        if (winner == "Вы")
         {
-            if (npc.npcName == winner)
+            PlayerWinEffect.PlayWinEffect();
+            GameDebug.LogWinner("Вы", potAmount, handDescription);
+        }
+        else if (!string.IsNullOrEmpty(winner))
+        {
+            foreach (var npc in table.GetAllNPCs())
             {
-                // Убираем winnerName, передаем только handDescription и potAmount
-                npc.ShowWinnerMessage(handDescription, potAmount);
-                break;
+                if (npc != null && npc.npcName == winner)
+                {
+                    npc.ShowWinnerMessage(handDescription, potAmount);
+                    break;
+                }
             }
         }
     }
-}
     
     private void ShowNPCCombinations()
     {
         foreach (var npc in table.GetAllNPCs())
         {
-            if (npc.HasCardsActive)
+            if (npc != null && npc.HasCardsActive)
             {
                 var evaluation = table.EvaluateNPCHand(npc);
                 npc.ShowCombination(evaluation.description, evaluation.value);
@@ -70,32 +69,48 @@ private void ShowWinnerMessage(string winner, string handDescription, int potAmo
     
     private void ShowPlayerHand(PlayerAction playerAction)
     {
-        if (playerAction != PlayerAction.Fold)
+        if (playerAction != PlayerAction.Fold && player != null && !player.IsFolded())
+        {
             GameDebug.LogPlayerHand(player.GetHandDescription(), player.GetHandValue());
+        }
         else
+        {
             GameDebug.LogInfo("Вы: ФОЛД");
+        }
     }
     
     private (string winner, string handDesc) DetermineWinner(PlayerAction playerAction)
     {
-        int bestValue = 0;
+        int bestValue = -1;  // -1 означает что нет активных участников
         string winner = "";
         string bestHandDesc = "";
+        bool hasActivePlayer = false;
+        int activeNPCsCount = 0;
         
-        if (playerAction != PlayerAction.Fold)
+        // Проверяем игрока ТОЛЬКО если он не сфолдил
+        if (playerAction != PlayerAction.Fold && player != null && !player.IsFolded())
         {
+            hasActivePlayer = true;
             bestValue = player.GetHandValue();
             winner = "Вы";
             bestHandDesc = player.GetHandDescription();
+            GameDebug.LogInfo($"Сила вашей руки: {bestValue} ({bestHandDesc})");
+        }
+        else
+        {
+            GameDebug.LogInfo("Вы сфолдили - не участвуете в определении победителя");
         }
         
+        // Проверяем всех активных NPC
         foreach (var npc in table.GetAllNPCs())
         {
+            if (npc == null) continue;
+            
             if (npc.HasCardsActive)
             {
-                var hand = table.GetNPCHand(npc);
+                activeNPCsCount++;
                 var evaluation = table.EvaluateNPCHand(npc);
-                GameDebug.LogNPCHand(npc.npcName, hand, evaluation.description, evaluation.value);
+                GameDebug.LogNPCHand(npc.npcName, table.GetNPCHand(npc), evaluation.description, evaluation.value);
                 
                 if (evaluation.value > bestValue)
                 {
@@ -110,27 +125,52 @@ private void ShowWinnerMessage(string winner, string handDescription, int potAmo
             }
         }
         
+        // Если все сфолдили (включая игрока), то победителя нет
+        if (activeNPCsCount == 0 && !hasActivePlayer)
+        {
+            GameDebug.LogWarning("Все участники сфолдили! Банк возвращается?");
+            winner = "";
+            bestHandDesc = "НЕТ ПОБЕДИТЕЛЯ";
+        }
+        
+        // Если только игрок активен (все NPC сфолдили)
+        if (activeNPCsCount == 0 && hasActivePlayer)
+        {
+            GameDebug.LogSuccess("Все NPC сфолдили! Вы побеждаете автоматически!");
+            winner = "Вы";
+            bestHandDesc = player.GetHandDescription();
+        }
+        
         return (winner, bestHandDesc);
     }
     
     private void PayWinner(string winner, int pot, string bestHandDesc)
     {
+        if (string.IsNullOrEmpty(winner))
+        {
+            GameDebug.LogWarning("Нет победителя! Банк не выплачен.");
+            return;
+        }
+        
         if (winner == "Вы")
         {
-            playerChips.AddChips(pot);
-            GameDebug.LogWinner(winner, pot, bestHandDesc);
+            if (playerChips != null)
+            {
+                playerChips.AddChips(pot);
+                GameDebug.LogWinner(winner, pot, bestHandDesc);
+            }
         }
         else if (!string.IsNullOrEmpty(winner))
         {
             foreach (var npc in table.GetAllNPCs())
             {
-                if (npc.npcName == winner)
+                if (npc != null && npc.npcName == winner)
                 {
                     npc.GetComponent<NPCChips>()?.AddChips(pot);
+                    GameDebug.LogWinner(winner, pot, bestHandDesc);
                     break;
                 }
             }
-            GameDebug.LogWinner(winner, pot, bestHandDesc);
         }
     }
 }

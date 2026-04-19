@@ -8,6 +8,9 @@ public class LevelData : ScriptableObject
     public string levelName;
     public int roundsCount = 5;
     public int anteAmount = 10;
+    public int chipsForLevel = 100;      // Фишки игрока на уровень
+    public int npcStartingChips = 100;   // Стартовые фишки NPC на уровень
+    public int raiseAmount = 10;
     
     [Header("NPCs in Level")]
     public List<NPCSetup> npcSetups = new List<NPCSetup>();

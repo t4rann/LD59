@@ -7,6 +7,7 @@ public class LevelController : MonoBehaviour
     [SerializeField] private Transform npcContainer;
     
     private List<NPCController> spawnedNPCs = new List<NPCController>();
+    private int currentNPCChipsAmount = 100;
     
     public List<NPCController> LoadLevel(LevelData levelData, TableController table)
     {
@@ -17,6 +18,9 @@ public class LevelController : MonoBehaviour
             Debug.LogError($"Не хватает точек спавна! Нужно {levelData.npcSetups.Count}, есть {spawnPoints.Count}");
             return null;
         }
+        
+        // Сохраняем стартовое количество фишек для NPC
+        currentNPCChipsAmount = levelData.npcStartingChips;
         
         // Применяем настройки уровня
         GameLoop gameLoop = FindFirstObjectByType<GameLoop>();
@@ -40,7 +44,7 @@ public class LevelController : MonoBehaviour
             NPCController npc = npcObj.GetComponent<NPCController>();
             if (npc != null)
             {
-                // Применяем поведение через публичное поле
+                // Применяем поведение
                 var field = typeof(NPCController).GetField("brain", 
                     System.Reflection.BindingFlags.Public | 
                     System.Reflection.BindingFlags.Instance);
@@ -49,17 +53,21 @@ public class LevelController : MonoBehaviour
                     field.SetValue(npc, setup.npcBrain);
                 }
                 
-                // Убеждаемся, что у NPC есть фишки
+                // Устанавливаем фишки NPC
                 NPCChips chips = npc.GetComponent<NPCChips>();
                 if (chips == null)
                 {
                     chips = npc.gameObject.AddComponent<NPCChips>();
-                    Debug.Log($"Добавлен компонент NPCChips для {npc.npcName}");
                 }
+                
+                // Устанавливаем стартовое количество фишек из уровня
+                chips.SetStartingChips(currentNPCChipsAmount);
                 
                 spawnedNPCs.Add(npc);
                 point.isOccupied = true;
                 table.AddNPC(npc);
+                
+                Debug.Log($"Спавн NPC: {npc.npcName} с {currentNPCChipsAmount} фишками");
             }
         }
         
@@ -69,10 +77,8 @@ public class LevelController : MonoBehaviour
     
     public void ClearCurrentNPCs(TableController table = null)
     {
-        // Очищаем TableController
         if (table != null)
         {
-            // Получаем всех NPC из таблицы и удаляем их
             var allNPCs = table.GetAllNPCs();
             for (int i = allNPCs.Count - 1; i >= 0; i--)
             {
@@ -84,7 +90,6 @@ public class LevelController : MonoBehaviour
             }
         }
         
-        // Уничтожаем спавненные объекты
         foreach (var npc in spawnedNPCs)
         {
             if (npc != null && npc.gameObject != null)
@@ -92,7 +97,6 @@ public class LevelController : MonoBehaviour
         }
         spawnedNPCs.Clear();
         
-        // Освобождаем точки спавна
         foreach (var point in spawnPoints)
         {
             point.isOccupied = false;

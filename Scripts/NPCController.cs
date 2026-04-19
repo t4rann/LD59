@@ -1,4 +1,3 @@
-// NPCController.cs
 using System.Collections;
 using UnityEngine;
 
@@ -18,6 +17,9 @@ public class NPCController : MonoBehaviour
         
     [Header("Floating Text")]
     [SerializeField] private FloatingTextNPC floatingText;
+    
+    [Header("Fold Tracking")]
+    private int consecutiveFolds = 0;
 
     public int CurrentHandValue => currentHandValue;
     public EmotionType CurrentEmotion => currentEmotion;
@@ -52,15 +54,51 @@ public class NPCController : MonoBehaviour
             
         currentEmotion = EmotionType.Neutral;
         HasCardsActive = false;
+        consecutiveFolds = 0;
     }
     
-    // Добавьте метод для показа комбинации
+    public void ResetConsecutiveFolds()
+    {
+        consecutiveFolds = 0;
+    }
+    
+    public void IncrementConsecutiveFolds()
+    {
+        consecutiveFolds++;
+    }
+    
+    public int GetConsecutiveFolds()
+    {
+        return consecutiveFolds;
+    }
+    
     public void ShowCombination(string handDescription, int handValue)
     {
         if (floatingText != null)
             floatingText.ShowCombination(handDescription, handValue);
     }
-        public void ReceiveNewHand(int handValue)
+    
+    public void ShowAction(PlayerAction action)
+    {
+        string actionText = action switch
+        {
+            PlayerAction.Fold => "FOLD",
+            PlayerAction.Call => "CALL",
+            PlayerAction.Raise => "RAISE",
+            _ => ""
+        };
+        
+        if (!string.IsNullOrEmpty(actionText) && floatingText != null)
+            floatingText.ShowAction(actionText);
+    }
+    
+    public void ShowWinnerMessage(string handDescription, int potAmount)
+    {
+        if (floatingText != null)
+            floatingText.ShowWinnerMessage(handDescription, potAmount);
+    }
+    
+    public void ReceiveNewHand(int handValue)
     {
         currentHandValue = handValue;
         HasCardsActive = false;
@@ -77,21 +115,7 @@ public class NPCController : MonoBehaviour
             
         takeCardsCoroutine = StartCoroutine(TakeCardsSequence());
     }
-
-public void ShowAction(PlayerAction action)
-{
-    string actionText = action switch
-    {
-        PlayerAction.Fold => "FOLD",
-        PlayerAction.Call => "CALL",
-        PlayerAction.Raise => "RAISE",
-        _ => ""
-    };
     
-    if (!string.IsNullOrEmpty(actionText) && floatingText != null)
-        floatingText.ShowAction(actionText);
-}
-
     private IEnumerator TakeCardsSequence()
     {
         yield return null;
@@ -122,8 +146,13 @@ public void ShowAction(PlayerAction action)
         
         float targetValue = currentEmotion switch
         {
-            EmotionType.Happy => 1f,
-            EmotionType.Angry => -1f,
+            EmotionType.Happy => 0.5f,
+            EmotionType.Sigma => 1f,
+            EmotionType.Neutral => 0f,
+            EmotionType.Worried => -0.3f,
+            EmotionType.Scared => -0.6f,
+            EmotionType.Angry => -0.8f,
+            EmotionType.Evil => -1f,      // Evil хуже Angry
             _ => 0f
         };
         
@@ -195,9 +224,6 @@ public void ShowAction(PlayerAction action)
             handsAnimator.SetTrigger(FoldTrigger);
         }
         
-        // НЕ сбрасываем эмоции здесь
-        // ResetToNeutral();
-        
         OnCardsDiscarded?.Invoke(this);
     }
     
@@ -205,6 +231,7 @@ public void ShowAction(PlayerAction action)
     {
         HasCardsActive = false;
         ResetToNeutral();
+        consecutiveFolds = 0;
         OnCardsDiscarded?.Invoke(this);
     }
     
@@ -213,7 +240,7 @@ public void ShowAction(PlayerAction action)
         if (brain == null) return PlayerAction.Fold;
         
         float seed = Random.value;
-        return brain.GetAction(currentHandValue, seed);
+        return brain.GetAction(currentHandValue, seed, consecutiveFolds);
     }
     
     public string GetStrengthText()
@@ -223,12 +250,6 @@ public void ShowAction(PlayerAction action)
         return "СЛАБАЯ";
     }
     
-public void ShowWinnerMessage(string handDescription, int potAmount)
-{
-    if (floatingText != null)
-        floatingText.ShowWinnerMessage(handDescription, potAmount);
-}
-
     void OnDestroy()
     {
         if (takeCardsCoroutine != null)
