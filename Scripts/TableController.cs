@@ -15,6 +15,7 @@ public class TableController : MonoBehaviour
     
     private Dictionary<NPCController, List<CardData>> npcHands = new Dictionary<NPCController, List<CardData>>();
     private Dictionary<NPCController, int> npcHandValues = new Dictionary<NPCController, int>();
+    private Dictionary<NPCController, string> npcHandDescriptions = new Dictionary<NPCController, string>();
     
     void Start()
     {
@@ -30,10 +31,14 @@ public class TableController : MonoBehaviour
         {
             List<CardData> hand = deckManager.DealCards(5);
             npcHands[npc] = hand;
-            int handValue = handEvaluator.GetHandStrengthValue(hand);
-            npcHandValues[npc] = handValue;
             
-            npc.ReceiveNewHand(handValue);
+            var evaluation = handEvaluator.EvaluateHand(hand);
+            npcHandValues[npc] = evaluation.value;
+            npcHandDescriptions[npc] = evaluation.description;
+            
+            Debug.Log($"[Table] {npc.npcName} получил: {evaluation.description} (сила: {evaluation.value})");
+            
+            npc.ReceiveNewHand(evaluation.value);
         }
         
         // Раздача игроку
@@ -41,6 +46,17 @@ public class TableController : MonoBehaviour
         {
             playerCards.DealNewHand();
         }
+    }
+    
+    // 👈 НОВЫЙ МЕТОД: помечает NPC как сфолдившего (очищает его карты)
+    public void MarkNPCAsFolded(NPCController npc)
+    {
+        if (npcHandValues.ContainsKey(npc))
+        {
+            npcHandValues[npc] = 0;
+            npcHandDescriptions[npc] = "FOLDED";
+        }
+        Debug.Log($"[Table] {npc.npcName} помечен как сфолдивший");
     }
     
     public void ResetAllEmotions()
@@ -51,33 +67,31 @@ public class TableController : MonoBehaviour
         }
     }
     
-public void DiscardAllCards()
-{
-    // Сброс карт игрока
-    if (playerCards != null)
+    public void DiscardAllCards()
     {
-        playerCards.DiscardAllCards();
-    }
-    
-    // Сброс карт NPC - только сброс карт, без сброса эмоций
-    foreach (var npc in allNPCs)
-    {
-        if (npc.HasCardsActive)
+        if (playerCards != null)
         {
-            npc.DiscardCards();
+            playerCards.DiscardAllCards();
         }
+        
+        foreach (var npc in allNPCs)
+        {
+            if (npc.HasCardsActive)
+            {
+                npc.DiscardCards();
+            }
+        }
+        
+        npcHands.Clear();
+        npcHandValues.Clear();
+        npcHandDescriptions.Clear();
     }
     
-    npcHands.Clear();
-    npcHandValues.Clear();
-}
-
-public void FullCleanup()
-{
-    DiscardAllCards();
-    ResetAllEmotions();
-}
-
+    public void FullCleanup()
+    {
+        DiscardAllCards();
+        ResetAllEmotions();
+    }
     
     public List<NPCController> GetAllNPCs()
     {
@@ -89,8 +103,16 @@ public void FullCleanup()
         List<NPCController> active = new List<NPCController>();
         foreach (var npc in allNPCs)
         {
-            if (npc.HasCardsActive)
+            // 👈 ИСПРАВЛЕНО: проверяем HasCardsActive И значение > 0
+            if (npc.HasCardsActive && npcHandValues.ContainsKey(npc) && npcHandValues[npc] > 0)
+            {
                 active.Add(npc);
+                Debug.Log($"[Active] {npc.npcName} активен, сила: {npcHandValues[npc]}");
+            }
+            else if (npc.HasCardsActive && (!npcHandValues.ContainsKey(npc) || npcHandValues[npc] <= 0))
+            {
+                Debug.LogWarning($"[Active] {npc.npcName} имеет HasCardsActive=true но нет данных в словаре!");
+            }
         }
         return active;
     }
@@ -124,25 +146,47 @@ public void FullCleanup()
         return 0;
     }
     
-    public Dictionary<NPCController, List<CardData>> GetAllNPCHands()
+    public string GetNPCHandDescription(NPCController npc)
     {
-        return npcHands;
+        if (npcHandDescriptions.ContainsKey(npc))
+            return npcHandDescriptions[npc];
+        return "HIGH CARD";
     }
     
-    public (HandRank rank, int value, string description) EvaluateNPCHand(NPCController npc)
+    // 👈 ИСПРАВЛЕННЫЙ МЕТОД: возвращает корректную комбинацию
+    public (int value, string description) EvaluateNPCHand(NPCController npc)
     {
-        if (npcHands.ContainsKey(npc))
-            return handEvaluator.EvaluateHand(npcHands[npc]);
-        return (HandRank.HighCard, 0, "Нет карт");
+        if (npc == null)
+            return (0, "HIGH CARD");
+        
+        // Если NPC сфолдил - возвращаем 0
+        if (!npc.HasCardsActive)
+        {
+            return (0, "FOLDED");
+        }
+        
+        // Проверяем сохраненные значения
+        if (npcHandValues.ContainsKey(npc) && npcHandValues[npc] > 0)
+        {
+            string desc = npcHandDescriptions.ContainsKey(npc) ? npcHandDescriptions[npc] : "HIGH CARD";
+            return (npcHandValues[npc], desc);
+        }
+        
+        // Если нет сохраненного значения, но NPC активен - вычисляем заново
+        if (npc.HasCardsActive && npcHands.ContainsKey(npc) && npcHands[npc] != null && npcHands[npc].Count > 0)
+        {
+            var evaluation = handEvaluator.EvaluateHand(npcHands[npc]);
+            return (evaluation.value, evaluation.description);
+        }
+        
+        return (0, "FOLDED");
     }
     
-    // Получить компонент фишек NPC
     public NPCChips GetNPCChips(NPCController npc)
     {
         return npc.GetComponent<NPCChips>();
     }
     
-    // Удалить NPC из-за стола
     public void RemoveNPC(NPCController npc)
     {
         if (allNPCs.Contains(npc))
@@ -150,20 +194,20 @@ public void FullCleanup()
             allNPCs.Remove(npc);
         }
     }
-
-public void ShowAllNPCCards()
-{
-    foreach (var npc in allNPCs)
+    
+    public void ShowAllNPCCards()
     {
-        npc.GetComponent<NPCCardsVisual>()?.ShowCards();
+        foreach (var npc in allNPCs)
+        {
+            npc.GetComponent<NPCCardsVisual>()?.ShowCards();
+        }
     }
-}
-
-public void HideAllNPCCards()
-{
-    foreach (var npc in allNPCs)
+    
+    public void HideAllNPCCards()
     {
-        npc.GetComponent<NPCCardsVisual>()?.HideCards();
+        foreach (var npc in allNPCs)
+        {
+            npc.GetComponent<NPCCardsVisual>()?.HideCards();
+        }
     }
-}
 }

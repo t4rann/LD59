@@ -39,6 +39,7 @@ public class GameLoop : MonoBehaviour
             bettingController.OnPotChanged += OnPotChanged;
         
         StartCoroutine(MainLoop());
+        
     }
     
     private void OnPotChanged(int pot)

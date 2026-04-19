@@ -17,6 +17,7 @@ public class BettingController
     public PlayerAction PlayerAction { get; private set; } = PlayerAction.None;
     
     public System.Action<int> OnPotChanged;
+    public System.Action<string> OnPlayerRaised; // 👈 НОВОЕ СОБЫТИЕ для отслеживания рейзов
     
     private bool canPlayerAct = false;
     
@@ -87,7 +88,13 @@ public class BettingController
     #endregion
     
     #region Betting Phases
-    
+    public void ResetPot()
+    {
+        Pot = 0;
+        CurrentBet = 0;
+        OnPotChanged?.Invoke(Pot);
+    }
+
     public IEnumerator BettingPhase()
     {
         GameDebug.LogPhase("ХОД NPC");
@@ -194,6 +201,7 @@ public class BettingController
                 CurrentBet = raiseAmount;
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
+                OnPlayerRaised?.Invoke(npc.npcName); // 👈 ЗАПИСЫВАЕМ РЕЙЗ NPC
                 break;
         }
     }
@@ -269,6 +277,7 @@ public class BettingController
                 CurrentBet = raiseAmount;
                 AddToPot(CurrentBet);
                 GameDebug.LogRaise(CurrentBet);
+                OnPlayerRaised?.Invoke("Игрок"); // 👈 ЗАПИСЫВАЕМ РЕЙЗ ИГРОКА
                 break;
         }
     }

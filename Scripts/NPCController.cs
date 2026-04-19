@@ -15,8 +15,9 @@ public class NPCController : MonoBehaviour
     [Header("Current State")]
     [SerializeField] private int currentHandValue;
     [SerializeField] private EmotionType currentEmotion;
-
-[SerializeField] private NPCCardsVisual cardsVisual;
+        
+    [Header("Floating Text")]
+    [SerializeField] private FloatingTextNPC floatingText;
 
     public int CurrentHandValue => currentHandValue;
     public EmotionType CurrentEmotion => currentEmotion;
@@ -53,7 +54,13 @@ public class NPCController : MonoBehaviour
         HasCardsActive = false;
     }
     
-    public void ReceiveNewHand(int handValue)
+    // Добавьте метод для показа комбинации
+    public void ShowCombination(string handDescription, int handValue)
+    {
+        if (floatingText != null)
+            floatingText.ShowCombination(handDescription, handValue);
+    }
+        public void ReceiveNewHand(int handValue)
     {
         currentHandValue = handValue;
         HasCardsActive = false;
@@ -202,6 +209,12 @@ public class NPCController : MonoBehaviour
         return "СЛАБАЯ";
     }
     
+public void ShowWinnerMessage(string handDescription, int potAmount)
+{
+    if (floatingText != null)
+        floatingText.ShowWinnerMessage(handDescription, potAmount);
+}
+
     void OnDestroy()
     {
         if (takeCardsCoroutine != null)

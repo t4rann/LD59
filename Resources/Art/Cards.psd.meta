@@ -37,7 +37,7 @@ ScriptedImporter:
     sRGBTexture: 1
     spriteMode: 2
     spriteExtrude: 1
-    spriteMeshType: 1
+    spriteMeshType: 0
     alignment: 0
     spritePivot: {x: 0.5, y: 0.5}
     spritePixelsToUnits: 150
@@ -219,8 +219,8 @@ ScriptedImporter:
       serializedVersion: 2
       x: 997
       y: 1161
-      width: 178
-      height: 241
+      width: 129
+      height: 178
     spriteID: 8df9511126d80d147b6a90317f244b3d
     spriteBone: []
     spriteOutline: []
@@ -244,6 +244,50 @@ ScriptedImporter:
       width: 219
       height: 119
     spriteID: 4135c790d74c16344bf1a7ca8d81c0c7
+    spriteBone: []
+    spriteOutline: []
+    vertices: []
+    spritePhysicsOutline: []
+    indices: 
+    edges: []
+    tessellationDetail: 0
+    uvTransform: {x: 0, y: 0}
+    spritePosition: {x: 0, y: 0}
+  - name: Cards_7
+    originalName: 
+    pivot: {x: 0.5, y: 0.5}
+    alignment: 0
+    border: {x: 0, y: 0, z: 0, w: 0}
+    customData: 
+    rect:
+      serializedVersion: 2
+      x: 1292
+      y: 1225
+      width: 181
+      height: 163
+    spriteID: db9134c3f6bb7994ba9e8e4010e95db3
+    spriteBone: []
+    spriteOutline: []
+    vertices: []
+    spritePhysicsOutline: []
+    indices: 
+    edges: []
+    tessellationDetail: 0
+    uvTransform: {x: 0, y: 0}
+    spritePosition: {x: 0, y: 0}
+  - name: Cards_8
+    originalName: 
+    pivot: {x: 0.5, y: 0.5}
+    alignment: 0
+    border: {x: 0, y: 0, z: 0, w: 0}
+    customData: 
+    rect:
+      serializedVersion: 2
+      x: 1170
+      y: 1026
+      width: 140
+      height: 142
+    spriteID: 6378a59d1f608a94a9c560085aebc537
     spriteBone: []
     spriteOutline: []
     vertices: []
