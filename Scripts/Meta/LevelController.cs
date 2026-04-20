@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,6 +10,101 @@ public class LevelController : MonoBehaviour
     private List<NPCController> spawnedNPCs = new List<NPCController>();
     private int currentNPCChipsAmount = 100;
     private LevelData currentLevelData;
+    private int currentLevelIndex = 0;
+    private List<LevelData> allLevels = new List<LevelData>();
+    
+    public void SetAllLevels(List<LevelData> levels)
+    {
+        allLevels = levels;
+        Debug.Log($"[LevelController] Установлено {levels.Count} уровней");
+    }
+    
+    public void SetAllLevels(LevelData[] levels)
+    {
+        allLevels.Clear();
+        allLevels.AddRange(levels);
+        Debug.Log($"[LevelController] Установлено {levels.Length} уровней из массива");
+    }
+    
+    public int GetLevelsCount()
+    {
+        return allLevels.Count;
+    }
+    
+    public bool IsLastLevel()
+    {
+        bool isLast = currentLevelIndex >= allLevels.Count - 1;
+        Debug.Log($"[LevelController] Проверка последнего уровня: {isLast} (индекс {currentLevelIndex} из {allLevels.Count})");
+        return isLast;
+    }
+    
+    public int GetCurrentLevelIndex()
+    {
+        return currentLevelIndex;
+    }
+    
+    public LevelData GetCurrentLevelData()
+    {
+        return currentLevelData;
+    }
+    
+    public LevelData GetLevelData(int index)
+    {
+        if (index >= 0 && index < allLevels.Count)
+            return allLevels[index];
+        return null;
+    }
+    
+    public List<NPCController> LoadLevelByIndex(int index, TableController table)
+    {
+        if (index < 0 || index >= allLevels.Count)
+        {
+            Debug.LogError($"[LevelController] Неверный индекс уровня: {index} (всего {allLevels.Count})");
+            return null;
+        }
+        
+        currentLevelIndex = index;
+        currentLevelData = allLevels[index];
+        
+        Debug.Log($"[LevelController] Загрузка уровня {index + 1}/{allLevels.Count}: {currentLevelData.levelName}");
+        
+        // Сбрасываем фишки игрока при загрузке нового уровня
+        ResetPlayerChips();
+        
+        return LoadLevel(currentLevelData, table);
+    }
+    
+private void ResetPlayerChips()
+{
+    PlayerChipsVisualController playerChipsVisual = FindFirstObjectByType<PlayerChipsVisualController>();
+    if (playerChipsVisual != null)
+    {
+        playerChipsVisual.ResetForNewLevel();
+        Debug.Log("[LevelController] Сброшен визуал фишек игрока");
+        
+        // Дополнительно принудительно обновляем через кадр
+        StartCoroutine(ForceUpdateChipsNextFrame(playerChipsVisual));
+    }
+    
+    // Также сбрасываем сами фишки игрока
+    PlayerChips playerChips = FindFirstObjectByType<PlayerChips>();
+    if (playerChips != null && currentLevelData != null)
+    {
+        playerChips.SetChipsForLevel(currentLevelData.chipsForLevel);
+        Debug.Log($"[LevelController] Установлено {currentLevelData.chipsForLevel} фишек игроку");
+    }
+}
+
+private IEnumerator ForceUpdateChipsNextFrame(PlayerChipsVisualController visual)
+{
+    yield return null;
+    yield return null;
+    
+    if (visual != null)
+    {
+        visual.ForceUpdateVisuals();
+    }
+}
     
     public List<NPCController> LoadLevel(LevelData levelData, TableController table)
     {
@@ -47,48 +143,29 @@ public class LevelController : MonoBehaviour
             NPCController npc = npcObj.GetComponent<NPCController>();
             if (npc != null)
             {
+                // Установка мозга NPC
                 if (setup.npcBrain != null)
                 {
-                    var method = typeof(NPCController).GetMethod("SetBrain", 
+                    var field = typeof(NPCController).GetField("brain", 
                         System.Reflection.BindingFlags.Public | 
+                        System.Reflection.BindingFlags.NonPublic | 
                         System.Reflection.BindingFlags.Instance);
-                    if (method != null)
+                    if (field != null)
                     {
-                        method.Invoke(npc, new object[] { setup.npcBrain });
-                    }
-                    else
-                    {
-                        var field = typeof(NPCController).GetField("brain", 
-                            System.Reflection.BindingFlags.Public | 
-                            System.Reflection.BindingFlags.NonPublic | 
-                            System.Reflection.BindingFlags.Instance);
-                        if (field != null)
-                        {
-                            field.SetValue(npc, setup.npcBrain);
-                        }
+                        field.SetValue(npc, setup.npcBrain);
                     }
                 }
                 
+                // Установка фишек
                 NPCChips chips = npc.GetComponent<NPCChips>();
                 if (chips == null)
                 {
                     chips = npc.gameObject.AddComponent<NPCChips>();
                 }
-                
                 chips.SetStartingChips(currentNPCChipsAmount);
                 
                 npc.ResetToNeutral();
                 npc.ResetConsecutiveFolds();
-                
-                var visualController = npc.GetComponent<NPCVisualController>();
-                if (visualController != null)
-                {
-                    var method = typeof(NPCVisualController).GetMethod("UpdateChipsDisplay");
-                    if (method != null)
-                    {
-                        method.Invoke(visualController, new object[] { npc, currentNPCChipsAmount });
-                    }
-                }
                 
                 spawnedNPCs.Add(npc);
                 point.isOccupied = true;
@@ -98,16 +175,16 @@ public class LevelController : MonoBehaviour
                     table.AddNPC(npc);
                 }
                 
-                Debug.Log($"Спавн NPC: {npc.npcName} с {currentNPCChipsAmount} фишками");
+                Debug.Log($"[LevelController] Спавн NPC: {npc.npcName} с {currentNPCChipsAmount} фишками");
             }
             else
             {
-                Debug.LogError($"Префаб {setup.npcPrefab.name} не содержит компонент NPCController!");
+                Debug.LogError($"Префаб {setup.npcPrefab.name} не содержит NPCController!");
                 Destroy(npcObj);
             }
         }
         
-        Debug.Log($"Загружено NPC: {spawnedNPCs.Count}");
+        Debug.Log($"[LevelController] Загружено {spawnedNPCs.Count} NPC для уровня {currentLevelIndex + 1}");
         return spawnedNPCs;
     }
     
@@ -140,41 +217,33 @@ public class LevelController : MonoBehaviour
             point.isOccupied = false;
         }
         
-        Debug.Log("Все NPC очищены");
+        Debug.Log("[LevelController] Все NPC очищены");
     }
     
     public void ReloadCurrentLevel(TableController table)
     {
         if (currentLevelData != null)
         {
-            Debug.Log("Перезагрузка текущего уровня...");
+            Debug.Log($"[LevelController] Перезагрузка уровня {currentLevelIndex + 1}");
+            
+            // Очищаем NPC
             ClearCurrentNPCs(table);
+            
+            // Очищаем стол
+            if (table != null)
+            {
+                table.FullCleanup();
+            }
+            
+            // Сбрасываем фишки игрока
+            ResetPlayerChips();
+            
+            // Загружаем уровень заново
             LoadLevel(currentLevelData, table);
         }
         else
         {
-            Debug.LogWarning("Нет данных о текущем уровне для перезагрузки");
-        }
-    }
-    
-    public int GetCurrentNPCChipsAmount()
-    {
-        return currentNPCChipsAmount;
-    }
-    
-    public void SetCurrentNPCChipsAmount(int amount)
-    {
-        currentNPCChipsAmount = amount;
-        foreach (var npc in spawnedNPCs)
-        {
-            if (npc != null)
-            {
-                var chips = npc.GetComponent<NPCChips>();
-                if (chips != null)
-                {
-                    chips.SetStartingChips(currentNPCChipsAmount);
-                }
-            }
+            Debug.LogWarning("[LevelController] Нет данных о текущем уровне");
         }
     }
     

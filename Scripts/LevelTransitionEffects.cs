@@ -28,102 +28,90 @@ public class LevelTransitionEffects : MonoBehaviour
     private GameObject fadePanel;
     private CanvasGroup fadeCanvasGroup;
     private bool isTransitioning = false;
+    private float transitionTimeout = 5.0f; // Таймаут для защиты от зависания
     
     void Awake()
     {
         mainCamera = Camera.main;
-        
-        // Полностью останавливаем партиклы при загрузке
         StopAllParticles();
     }
     
     void Start()
     {
-        // Еще раз останавливаем на всякий случай
         StopAllParticles();
     }
     
     private void StopAllParticles()
     {
-        // Останавливаем партикл перехода
         if (transitionParticles != null)
         {
             transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             transitionParticles.Clear();
-            // Убеждаемся что партикл не проигрывается
-            transitionParticles.gameObject.SetActive(true);
-            transitionParticles.Play();
-            transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            transitionParticles.Clear();
         }
         
-        // Останавливаем партикл завершения уровня
         if (levelCompleteParticles != null)
         {
             levelCompleteParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             levelCompleteParticles.Clear();
-            levelCompleteParticles.gameObject.SetActive(true);
-            levelCompleteParticles.Play();
-            levelCompleteParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            levelCompleteParticles.Clear();
         }
-        
-        Debug.Log("[Transition] Все партиклы остановлены");
     }
     
-    // Эффект завершения уровня
     public IEnumerator PlayLevelComplete()
     {
-        if (isTransitioning) yield break;
+        if (isTransitioning) 
+        {
+            Debug.LogWarning("[Transition] Эффект завершения уровня уже воспроизводится");
+            yield break;
+        }
+        
         isTransitioning = true;
+        float startTime = Time.time;
         
         Debug.Log("[Transition] Воспроизведение эффекта завершения уровня");
         
-        // Воспроизводим звук завершения уровня
         PlayLevelCompleteSound();
         
-        // Запускаем партикл завершения уровня
         if (levelCompleteParticles != null)
         {
             levelCompleteParticles.Clear();
             levelCompleteParticles.Play();
-            Debug.Log("[Transition] LevelComplete партикл запущен");
         }
         
-        // Небольшая задержка
         yield return new WaitForSeconds(0.5f);
         
-        // Останавливаем партикл
         if (levelCompleteParticles != null)
         {
             levelCompleteParticles.Stop();
             levelCompleteParticles.Clear();
-            Debug.Log("[Transition] LevelComplete партикл остановлен");
         }
         
         isTransitioning = false;
+        Debug.Log($"[Transition] Эффект завершения уровня закончен за {Time.time - startTime} сек");
     }
     
-    // Запуск перехода - затемнение
     public IEnumerator StartTransition()
     {
-        if (isTransitioning) yield break;
-        isTransitioning = true;
+        // Защита от зависания
+        if (isTransitioning)
+        {
+            Debug.LogWarning("[Transition] Переход уже выполняется, принудительный сброс");
+            ForceCleanup();
+        }
         
-        // Воспроизводим звук начала перехода
+        isTransitioning = true;
+        float startTime = Time.time;
+        
+        Debug.Log("[Transition] Начало перехода (затемнение)");
+        
         PlayTransitionStartSound();
         
-        // Принудительно останавливаем и очищаем партикл перед запуском
+        // Очищаем партиклы перед запуском
         if (transitionParticles != null)
         {
             transitionParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
             transitionParticles.Clear();
-            
-            // Небольшая задержка перед запуском
             yield return new WaitForSeconds(0.05f);
-            
             transitionParticles.Play();
-            Debug.Log("[Transition] Партикл запущен");
         }
         
         if (particleStartDelay > 0)
@@ -133,24 +121,29 @@ public class LevelTransitionEffects : MonoBehaviour
         
         yield return StartCoroutine(FadeToBlack());
         DisableVisualElements();
+        
+        Debug.Log($"[Transition] Затемнение завершено за {Time.time - startTime} сек");
     }
     
-    // Завершение перехода - осветление
     public IEnumerator EndTransition()
     {
+        float startTime = Time.time;
+        Debug.Log("[Transition] Начало завершения перехода (осветление)");
+        
+        EnableVisualElements();
         yield return StartCoroutine(FadeFromBlack());
         
-        // Воспроизводим звук окончания перехода
         PlayTransitionEndSound();
         
         if (transitionParticles != null)
         {
             transitionParticles.Stop();
             transitionParticles.Clear();
-            Debug.Log("[Transition] Партикл остановлен");
         }
         
         isTransitioning = false;
+        
+        Debug.Log($"[Transition] Осветление завершено за {Time.time - startTime} сек");
     }
     
     private IEnumerator FadeToBlack()
@@ -162,40 +155,46 @@ public class LevelTransitionEffects : MonoBehaviour
         {
             elapsed += Time.deltaTime;
             float t = elapsed / fadeDuration;
-            fadeCanvasGroup.alpha = Mathf.Lerp(0, 1, fadeCurve.Evaluate(t));
+            if (fadeCanvasGroup != null)
+                fadeCanvasGroup.alpha = Mathf.Lerp(0, 1, fadeCurve.Evaluate(t));
             yield return null;
         }
         
-        fadeCanvasGroup.alpha = 1;
-        Debug.Log("[Transition] Затемнение завершено");
+        if (fadeCanvasGroup != null)
+            fadeCanvasGroup.alpha = 1;
     }
     
     private IEnumerator FadeFromBlack()
     {
-        if (fadePanel == null) yield break;
-        
-        EnableVisualElements();
+        if (fadePanel == null) 
+        {
+            Debug.LogWarning("[Transition] Нет панели для осветления");
+            yield break;
+        }
         
         float elapsed = 0f;
         while (elapsed < fadeDuration)
         {
             elapsed += Time.deltaTime;
             float t = elapsed / fadeDuration;
-            fadeCanvasGroup.alpha = Mathf.Lerp(1, 0, fadeCurve.Evaluate(t));
+            if (fadeCanvasGroup != null)
+                fadeCanvasGroup.alpha = Mathf.Lerp(1, 0, fadeCurve.Evaluate(t));
             yield return null;
         }
         
-        fadeCanvasGroup.alpha = 0;
+        if (fadeCanvasGroup != null)
+            fadeCanvasGroup.alpha = 0;
         
-        Destroy(fadePanel);
+        if (fadePanel != null)
+            Destroy(fadePanel);
+        
         fadePanel = null;
         fadeCanvasGroup = null;
-        
-        Debug.Log("[Transition] Осветление завершено");
     }
     
     private void DisableVisualElements()
     {
+        // Отключаем NPC
         NPCController[] npcs = FindObjectsByType<NPCController>(FindObjectsSortMode.None);
         foreach (var npc in npcs)
         {
@@ -204,40 +203,44 @@ public class LevelTransitionEffects : MonoBehaviour
                 var renderers = npc.GetComponentsInChildren<Renderer>();
                 foreach (var renderer in renderers)
                 {
-                    if (renderer != null && renderer.enabled)
+                    if (renderer != null)
                         renderer.enabled = false;
                 }
             }
         }
         
+        // Отключаем игрока
         PlayerCardsController player = FindFirstObjectByType<PlayerCardsController>();
         if (player != null)
         {
             var renderers = player.GetComponentsInChildren<Renderer>();
             foreach (var renderer in renderers)
             {
-                if (renderer != null && renderer.enabled)
+                if (renderer != null)
                     renderer.enabled = false;
             }
         }
         
+        // Отключаем банк
         BankChipsVisualController bank = FindFirstObjectByType<BankChipsVisualController>();
         if (bank != null)
         {
             var renderers = bank.GetComponentsInChildren<Renderer>();
             foreach (var renderer in renderers)
             {
-                if (renderer != null && renderer.enabled)
+                if (renderer != null)
                     renderer.enabled = false;
             }
         }
         
+        // Отключаем кнопки
         ActionButtonsController buttons = FindFirstObjectByType<ActionButtonsController>();
         if (buttons != null)
         {
             buttons.ShowButtons(false);
         }
         
+        // Дополнительные элементы
         foreach (var element in additionalVisualElements)
         {
             if (element != null)
@@ -245,17 +248,16 @@ public class LevelTransitionEffects : MonoBehaviour
                 var renderers = element.GetComponentsInChildren<Renderer>();
                 foreach (var renderer in renderers)
                 {
-                    if (renderer != null && renderer.enabled)
+                    if (renderer != null)
                         renderer.enabled = false;
                 }
             }
         }
-        
-        Debug.Log("[Transition] Визуальные элементы выключены");
     }
     
     private void EnableVisualElements()
     {
+        // Включаем NPC
         NPCController[] npcs = FindObjectsByType<NPCController>(FindObjectsSortMode.None);
         foreach (var npc in npcs)
         {
@@ -270,6 +272,7 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
+        // Включаем игрока
         PlayerCardsController player = FindFirstObjectByType<PlayerCardsController>();
         if (player != null)
         {
@@ -281,6 +284,7 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
+        // Включаем банк
         BankChipsVisualController bank = FindFirstObjectByType<BankChipsVisualController>();
         if (bank != null)
         {
@@ -292,6 +296,7 @@ public class LevelTransitionEffects : MonoBehaviour
             }
         }
         
+        // Включаем дополнительные элементы
         foreach (var element in additionalVisualElements)
         {
             if (element != null)
@@ -304,13 +309,13 @@ public class LevelTransitionEffects : MonoBehaviour
                 }
             }
         }
-        
-        Debug.Log("[Transition] Визуальные элементы включены");
     }
     
     private void CreateFadePanel()
     {
         if (fadePanel != null) return;
+        if (mainCamera == null) mainCamera = Camera.main;
+        if (mainCamera == null) return;
         
         fadePanel = new GameObject("FadePanel");
         fadePanel.transform.SetParent(mainCamera.transform);
@@ -328,7 +333,22 @@ public class LevelTransitionEffects : MonoBehaviour
         image.color = Color.black;
     }
     
-    #region Sound Methods
+    public void ForceCleanup()
+    {
+        Debug.LogWarning("[Transition] Принудительная очистка");
+        
+        StopAllCoroutines();
+        
+        if (fadePanel != null)
+            Destroy(fadePanel);
+        
+        fadePanel = null;
+        fadeCanvasGroup = null;
+        
+        StopAllParticles();
+        EnableVisualElements();
+        isTransitioning = false;
+    }
     
     private void PlayLevelCompleteSound()
     {
@@ -337,17 +357,10 @@ public class LevelTransitionEffects : MonoBehaviour
         if (AudioManager.Instance != null && levelCompleteSound != null)
         {
             AudioManager.Instance.PlaySFX(levelCompleteSound, levelCompleteSoundVolume);
-            Debug.Log("[Transition] Воспроизведен звук завершения уровня");
         }
-        else if (AudioManager.Instance != null && levelCompleteSound == null)
+        else if (AudioManager.Instance != null)
         {
-            // Если нет отдельного звука, используем стандартный win sound
             AudioManager.Instance.PlayWinSound();
-            Debug.Log("[Transition] Воспроизведен стандартный звук победы");
-        }
-        else
-        {
-            Debug.LogWarning("[Transition] AudioManager.Instance is null, cannot play level complete sound");
         }
     }
     
@@ -358,12 +371,6 @@ public class LevelTransitionEffects : MonoBehaviour
         if (AudioManager.Instance != null && transitionStartSound != null)
         {
             AudioManager.Instance.PlaySFX(transitionStartSound, transitionSoundVolume);
-            Debug.Log("[Transition] Воспроизведен звук начала перехода");
-        }
-        else if (AudioManager.Instance != null)
-        {
-            // Если нет отдельного звука, используем sound эффект
-            Debug.Log("[Transition] transitionStartSound не назначен");
         }
     }
     
@@ -374,24 +381,11 @@ public class LevelTransitionEffects : MonoBehaviour
         if (AudioManager.Instance != null && transitionEndSound != null)
         {
             AudioManager.Instance.PlaySFX(transitionEndSound, transitionSoundVolume);
-            Debug.Log("[Transition] Воспроизведен звук окончания перехода");
-        }
-        else if (AudioManager.Instance != null)
-        {
-            // Если нет отдельного звука
-            Debug.Log("[Transition] transitionEndSound не назначен");
         }
     }
     
-    #endregion
-    
-    public void Cleanup()
+    void OnDestroy()
     {
-        if (fadePanel != null)
-            Destroy(fadePanel);
-        
-        StopAllParticles();
-        EnableVisualElements();
-        isTransitioning = false;
+        ForceCleanup();
     }
 }

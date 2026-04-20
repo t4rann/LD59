@@ -187,109 +187,276 @@ IEnumerator MainLoop()
         yield break;
     }
 
+    // 🔑 ИДЕМ ПО ВСЕМ УРОВНЯМ
+    for (currentLevelIndex = 0; currentLevelIndex < levels.Length; currentLevelIndex++)
+    {
+        if (isRestartingLevel) yield break;
         
-        for (currentLevelIndex = 0; currentLevelIndex < levels.Length; currentLevelIndex++)
+        LevelData level = levels[currentLevelIndex];
+        
+        Debug.Log("═══════════════════════════════════════");
+        Debug.Log($"📊 ПРОВЕРКА УРОВНЯ {currentLevelIndex + 1}/{levels.Length}");
+        Debug.Log($"📊 Название: {level.levelName}");
+        Debug.Log($"📊 isFinalLevel: {level.isFinalLevel}");
+        Debug.Log("═══════════════════════════════════════");
+        
+        // 🔑 ПРОВЕРЯЕМ ФИНАЛЬНЫЙ УРОВЕНЬ ПЕРЕД ЗАГРУЗКОЙ
+        if (level.isFinalLevel)
         {
-            if (isRestartingLevel) yield break;
+            Debug.Log("🎯🎯🎯 ОБНАРУЖЕН ФИНАЛЬНЫЙ УРОВЕНЬ! ВЫПОЛНЯЕМ ПЕРЕХОД! 🎯🎯🎯");
             
-            LevelData level = levels[currentLevelIndex];
-            
-            if (level.isFinalLevel)
+            // Показываем эффект завершения предыдущего уровня (если не первый)
+            if (currentLevelIndex > 0 && transitionEffects != null)
             {
-                yield return StartCoroutine(PlayFinalLevel(level));
-                
-                if (GameManager.Instance != null && !GameManager.Instance.IsGameOver())
-                {
-                    yield return StartCoroutine(PlayFinalScene());
-                }
-                break;
+                yield return StartCoroutine(transitionEffects.PlayLevelComplete());
+                yield return new WaitForSeconds(0.5f);
             }
             
-            if (currentLevelIndex == 0)
+            // 🔑 ЗАТЕМНЕНИЕ ПЕРЕД ФИНАЛЬНЫМ УРОВНЕМ
+            if (transitionEffects != null)
+            {
+                yield return StartCoroutine(transitionEffects.StartTransition());
+            }
+            
+            // 🔑 ЗАГРУЖАЕМ ФИНАЛЬНЫЙ УРОВЕНЬ
+            LoadNewLevel(level);
+            
+            // Небольшая пауза
+            yield return new WaitForSeconds(0.3f);
+            
+            // 🔑 ОСВЕТЛЕНИЕ
+            if (transitionEffects != null)
+            {
+                yield return StartCoroutine(transitionEffects.EndTransition());
+            }
+            
+            // 🔑 ИГРАЕМ ФИНАЛЬНЫЙ УРОВЕНЬ
+            yield return StartCoroutine(PlayFinalLevel(level));
+            
+            // После финального уровня показываем финальную сцену
+            if (GameManager.Instance != null && !GameManager.Instance.IsGameOver())
+            {
+                yield return StartCoroutine(PlayFinalScene());
+            }
+            
+            break; // Выходим из цикла
+        }
+        
+        // === ОБЫЧНЫЕ УРОВНИ ===
+        Debug.Log($"📦 Загрузка обычного уровня {currentLevelIndex + 1}");
+        
+        if (currentLevelIndex == 0)
+        {
+            // Первый уровень без затемнения
+            LoadNewLevel(level);
+        }
+        else
+        {
+            // Переход между обычными уровнями
+            if (transitionEffects != null)
+            {
+                yield return StartCoroutine(transitionEffects.StartTransition());
+                if (isRestartingLevel) yield break;
+                LoadNewLevel(level);
+                yield return StartCoroutine(transitionEffects.EndTransition());
+                yield return new WaitForSeconds(levelTransitionDelay);
+            }
+            else
             {
                 LoadNewLevel(level);
             }
-            else
-            {
-                if (transitionEffects != null)
-                {
-                    yield return StartCoroutine(transitionEffects.StartTransition());
-                    if (isRestartingLevel) yield break;
-                    LoadNewLevel(level);
-                    yield return StartCoroutine(transitionEffects.EndTransition());
-                    yield return new WaitForSeconds(levelTransitionDelay);
-                }
-                else
-                {
-                    LoadNewLevel(level);
-                }
-            }
-            
+        }
+        
+        if (isRestartingLevel) yield break;
+        
+        // 🔑 ИГРАЕМ УРОВЕНЬ
+        GameDebug.LogHeader($"УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
+        if (level.isPlayerInvolved)
+        {
+            GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек игрока: {level.chipsForLevel} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount}");
+        }
+        else
+        {
+            GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount} | Режим: NPC vs NPC");
+        }
+        GameDebug.LogDivider();
+        
+        bool levelFailed = false;
+        
+        // 🔑 ИГРАЕМ РАУНДЫ УРОВНЯ
+        for (int round = 1; round <= level.roundsCount; round++)
+        {
             if (isRestartingLevel) yield break;
             
-            GameDebug.LogHeader($"УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
+            Debug.Log($"🎮 Уровень {currentLevelIndex + 1}, Раунд {round}/{level.roundsCount}");
+            
             if (level.isPlayerInvolved)
             {
-                GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек игрока: {level.chipsForLevel} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount}");
+                yield return PlayRound(round, level);
             }
             else
             {
-                GameDebug.LogInfo($"Раундов: {level.roundsCount} | Анте: {level.anteAmount} | Фишек NPC: {level.npcStartingChips} | Рейз: {level.raiseAmount} | Режим: NPC vs NPC");
-            }
-            GameDebug.LogDivider();
-            
-            bool levelFailed = false;
-            
-            for (int round = 1; round <= level.roundsCount; round++)
-            {
-                if (isRestartingLevel) yield break;
-                
-                if (level.isPlayerInvolved)
-                {
-                    yield return PlayRound(round, level);
-                }
-                else
-                {
-                    yield return PlayNPCRound(round, level);
-                }
-                
-                if (bettingController != null)
-                {
-                    bettingController.CheckAndRemoveBrokeNPCs();
-                }
-                
-                if (playerChips != null && level.isPlayerInvolved && playerChips.IsBroke())
-                {
-                    GameDebug.LogError("Игрок проиграл все фишки! Перезапуск уровня...");
-                    levelFailed = true;
-                    break;
-                }
+                yield return PlayNPCRound(round, level);
             }
             
-            if (levelFailed)
+            if (bettingController != null)
             {
-                RestartCurrentLevel();
-                yield break;
+                bettingController.CheckAndRemoveBrokeNPCs();
             }
             
-            if (isRestartingLevel) yield break;
-            
-            if (currentLevelIndex < levels.Length - 1 && !levels[currentLevelIndex + 1].isFinalLevel)
+            if (playerChips != null && level.isPlayerInvolved && playerChips.IsBroke())
             {
-                GameDebug.LogSuccess($"Уровень {currentLevelIndex + 1} пройден!");
-                
-                if (transitionEffects != null)
-                {
-                    yield return StartCoroutine(transitionEffects.PlayLevelComplete());
-                }
-                
-                yield return new WaitForSeconds(1f);
+                GameDebug.LogError("Игрок проиграл все фишки! Перезапуск уровня...");
+                levelFailed = true;
+                break;
+            }
+            
+            // 🔑 ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ УРОВНЯ ПОСЛЕ КАЖДОГО РАУНДА
+            if (CheckLevelComplete())
+            {
+                Debug.Log($"✅ Уровень {currentLevelIndex + 1} завершен досрочно!");
+                break;
             }
         }
         
-        GameDebug.LogHeader("ИГРА ПРОЙДЕНА ПОЛНОСТЬЮ!");
+        if (levelFailed)
+        {
+            RestartCurrentLevel();
+            yield break;
+        }
+        
+        if (isRestartingLevel) yield break;
+        
+        // 🔑 ПОКАЗЫВАЕМ ЭФФЕКТ ЗАВЕРШЕНИЯ УРОВНЯ (кроме последнего)
+        if (currentLevelIndex < levels.Length - 1)
+        {
+            GameDebug.LogSuccess($"Уровень {currentLevelIndex + 1} пройден!");
+            
+            if (transitionEffects != null)
+            {
+                yield return StartCoroutine(transitionEffects.PlayLevelComplete());
+            }
+            
+            yield return new WaitForSeconds(1f);
+        }
     }
     
+    GameDebug.LogHeader("ИГРА ПРОЙДЕНА ПОЛНОСТЬЮ!");
+}
+
+// 🔑 НОВЫЙ МЕТОД ПРОВЕРКИ ЗАВЕРШЕНИЯ УРОВНЯ
+private bool CheckLevelComplete()
+{
+    if (table == null) return false;
+    
+    var npcs = table.GetAllNPCs();
+    int aliveNPCs = 0;
+    
+    foreach (var npc in npcs)
+    {
+        if (npc != null)
+        {
+            NPCChips chips = npc.GetComponent<NPCChips>();
+            if (chips != null && !chips.IsBroke())
+                aliveNPCs++;
+        }
+    }
+    
+    // Уровень завершен если все NPC разорились
+    return aliveNPCs == 0;
+}
+
+// 🔑 ИСПРАВЛЕННЫЙ PlayFinalLevel
+private IEnumerator PlayFinalLevel(LevelData level)
+{
+    Debug.Log("═══════════════════════════════════════");
+    Debug.Log("🎯🎯🎯 НАЧАЛО ФИНАЛЬНОГО УРОВНЯ 🎯🎯🎯");
+    Debug.Log($"🎯 Название: {level.levelName}");
+    Debug.Log($"🎯 Раундов: {level.roundsCount}");
+    Debug.Log("═══════════════════════════════════════");
+    
+    finalLevelNPCs.Clear();
+    
+    if (bettingController != null)
+    {
+        bettingController.SetFinalLevel(true);
+        bettingController.SetDeleteNPCsOnLoss(false);
+    }
+    
+    // 🔑 ОБНОВЛЯЕМ ВИЗУАЛ ФИШЕК
+    PlayerChipsVisualController chipsVisual = FindFirstObjectByType<PlayerChipsVisualController>();
+    if (chipsVisual != null)
+    {
+        yield return new WaitForSeconds(0.2f);
+        chipsVisual.ForceUpdateVisuals();
+        Debug.Log($"🎯 Визуал фишек обновлен, в стеке {chipsVisual.GetChipsCount()} фишек");
+    }
+    
+    foreach (var npc in table.GetAllNPCs())
+    {
+        if (npc != null)
+        {
+            finalLevelNPCs.Add(npc);
+            Debug.Log($"🎯 NPC в финале: {npc.npcName}");
+        }
+    }
+    
+    if (finalSceneController != null)
+    {
+        finalSceneController.SetFinalNPCs(finalLevelNPCs.ToArray());
+    }
+    
+    GameDebug.LogHeader($"ФИНАЛЬНЫЙ УРОВЕНЬ: {level.levelName}");
+    GameDebug.LogDivider();
+    
+    bool levelFailed = false;
+    
+    // 🔑 ИГРАЕМ РАУНДЫ ФИНАЛЬНОГО УРОВНЯ
+    for (int round = 1; round <= level.roundsCount; round++)
+    {
+        if (isRestartingLevel) yield break;
+        
+        Debug.Log($"🎯 ФИНАЛ: Раунд {round}/{level.roundsCount}");
+        
+        if (level.isPlayerInvolved)
+        {
+            yield return PlayRound(round, level);
+        }
+        else
+        {
+            yield return PlayNPCRound(round, level);
+        }
+        
+        if (bettingController != null)
+            bettingController.CheckAndRemoveBrokeNPCs();
+        
+        if (playerChips != null && level.isPlayerInvolved && playerChips.IsBroke())
+        {
+            GameDebug.LogError("Игрок проиграл все фишки в финале!");
+            levelFailed = true;
+            break;
+        }
+        
+        // Проверяем завершение финального уровня
+        if (CheckLevelComplete())
+        {
+            Debug.Log("🎯🎯🎯 ФИНАЛЬНЫЙ УРОВЕНЬ ПРОЙДЕН! 🎯🎯🎯");
+            break;
+        }
+    }
+    
+    if (levelFailed)
+    {
+        RestartCurrentLevel();
+    }
+    else
+    {
+        Debug.Log("═══════════════════════════════════════");
+        Debug.Log("🎯🎯🎯 ФИНАЛЬНЫЙ УРОВЕНЬ УСПЕШНО ЗАВЕРШЕН! 🎯🎯🎯");
+        Debug.Log("═══════════════════════════════════════");
+    }
+}
+
     private IEnumerator PlayWithoutLevels()
     {
         GameDebug.LogInfo($"Управление: Кнопки внизу экрана | Анте: {anteAmount}");
@@ -317,6 +484,7 @@ IEnumerator MainLoop()
         GameDebug.LogInfo("Нажми R для рестарта");
     }
     
+// В GameLoop исправь метод LoadNewLevel:
 private void LoadNewLevel(LevelData level)
 {
     if (isLoadingLevel) return;
@@ -324,12 +492,13 @@ private void LoadNewLevel(LevelData level)
     
     try
     {
-        // Убираем очистку NPC и карт - это уже сделано до вызова LoadNewLevel
-        // if (table != null)
-        // {
-        //     table.ClearAllNPCs();
-        //     table.DiscardAllCards();
-        // }
+        Debug.Log($"📦 LoadNewLevel: {level.levelName} | isFinalLevel = {level.isFinalLevel} | chipsForLevel = {level.chipsForLevel}");
+        
+        // Передаем уровни в LevelController если ещё не переданы
+        if (levelController != null && levels != null)
+        {
+            levelController.SetAllLevels(levels);
+        }
         
         if (bankVisual != null)
         {
@@ -342,10 +511,19 @@ private void LoadNewLevel(LevelData level)
             levelController.LoadLevel(level, table);
         }
         
-        if (playerChips != null && level.isPlayerInvolved)
+        // 🔑 ВАЖНО: Принудительно обновляем фишки игрока
+        if (playerChips != null)
         {
             playerChips.SetChipsForLevel(level.chipsForLevel);
             GameDebug.LogInfo($"Игроку выдано {level.chipsForLevel} фишек");
+        }
+        
+        // 🔑 ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ ВИЗУАЛ ФИШЕК
+        PlayerChipsVisualController chipsVisual = FindFirstObjectByType<PlayerChipsVisualController>();
+        if (chipsVisual != null)
+        {
+            // Даем время на загрузку уровня
+            StartCoroutine(DelayedChipsUpdate(chipsVisual, level.chipsForLevel));
         }
         
         if (bettingController != null)
@@ -371,66 +549,46 @@ private void LoadNewLevel(LevelData level)
         isLoadingLevel = false;
     }
 }
+
+// 🔑 НОВЫЙ МЕТОД ДЛЯ ОТЛОЖЕННОГО ОБНОВЛЕНИЯ ФИШЕК
+private IEnumerator DelayedChipsUpdate(PlayerChipsVisualController visual, int chipsAmount)
+{
+    // Ждем завершения анимаций перехода
+    yield return new WaitForSeconds(0.5f);
     
-    private IEnumerator PlayFinalLevel(LevelData level)
+    if (visual != null)
     {
-        finalLevelNPCs.Clear();
-        
-        if (bettingController != null)
+        Debug.Log($"[GameLoop] Отложенное обновление визуала фишек: {chipsAmount}");
+        visual.ForceUpdateVisuals();
+    }
+}
+
+// Добавь метод для проверки и перехода на финальный уровень:
+private bool CheckAndHandleFinalLevelTransition()
+{
+    if (levelController != null && levelController.IsLastLevel())
+    {
+        LevelData currentLevel = levelController.GetCurrentLevelData();
+        if (currentLevel != null && currentLevel.isFinalLevel)
         {
-            bettingController.SetFinalLevel(true);
-            bettingController.SetDeleteNPCsOnLoss(false);
-        }
-        
-        LoadNewLevel(level);
-        
-        foreach (var npc in table.GetAllNPCs())
-        {
-            if (npc != null)
-            {
-                finalLevelNPCs.Add(npc);
-            }
-        }
-        
-        if (finalSceneController != null)
-        {
-            finalSceneController.SetFinalNPCs(finalLevelNPCs.ToArray());
-        }
-        
-        GameDebug.LogHeader($"ФИНАЛЬНЫЙ УРОВЕНЬ {currentLevelIndex + 1}: {level.levelName}");
-        GameDebug.LogDivider();
-        
-        bool levelFailed = false;
-        
-        for (int round = 1; round <= level.roundsCount; round++)
-        {
-            if (isRestartingLevel) yield break;
-            
-            if (level.isPlayerInvolved)
-            {
-                yield return PlayRound(round, level);
-            }
-            else
-            {
-                yield return PlayNPCRound(round, level);
-            }
-            
-            if (bettingController != null)
-                bettingController.CheckAndRemoveBrokeNPCs();
-            
-            if (playerChips != null && level.isPlayerInvolved && playerChips.IsBroke())
-            {
-                GameDebug.LogError("Игрок проиграл все фишки!");
-                levelFailed = true;
-                break;
-            }
-        }
-        
-        if (levelFailed)
-        {
-            RestartCurrentLevel();
+            Debug.Log("[GameLoop] Обнаружен финальный уровень, выполняем специальную загрузку");
+            return true;
         }
     }
+    
+    // Проверка через массив levels
+    if (levels != null && currentLevelIndex < levels.Length)
+    {
+        if (levels[currentLevelIndex].isFinalLevel)
+        {
+            Debug.Log($"[GameLoop] Уровень {currentLevelIndex + 1} помечен как финальный");
+            return true;
+        }
+    }
+    
+    return false;
+}
+
     
     private IEnumerator PlayFinalScene()
     {
