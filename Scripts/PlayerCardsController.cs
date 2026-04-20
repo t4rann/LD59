@@ -38,17 +38,24 @@ public class PlayerCardsController : MonoBehaviour
     private List<Card> currentCards = new List<Card>();
     private List<CardData> currentHandData = new List<CardData>();
     private (HandRank rank, int value, string description) handEvaluation;
-    private bool isFolded = false;  // Флаг фолда
+    private bool isFolded = false;
+    private bool isDealing = false;
+    private bool isDiscarding = false;
     
     public System.Action<string, int> OnHandReceived;
+    public System.Action OnDealAnimationComplete;  // НОВОЕ: событие завершения анимации
+    public System.Action OnDiscardAnimationComplete; // НОВОЕ: событие завершения сброса
+    
+    public bool IsDealing => isDealing;
+    public bool IsDiscarding => isDiscarding;
     
     void Start()
     {
         if (handPosition == null) handPosition = transform;
         if (spawnPosition == null) spawnPosition = transform;
         if (despawnPosition == null) despawnPosition = transform;
-        if (deckManager == null) deckManager = FindObjectOfType<DeckManager>();
-        if (handEvaluator == null) handEvaluator = FindObjectOfType<HandEvaluator>();
+        if (deckManager == null) deckManager = FindFirstObjectByType<DeckManager>();
+        if (handEvaluator == null) handEvaluator = FindFirstObjectByType<HandEvaluator>();
     }
     
     public bool IsFolded()
@@ -63,12 +70,23 @@ public class PlayerCardsController : MonoBehaviour
     
     public void DealNewHand()
     {
-        isFolded = false;  // Сбрасываем фолд при новой раздаче
+        if (isDealing)
+        {
+            Debug.LogWarning("[PlayerCards] Раздача уже идет!");
+            return;
+        }
+        
         StartCoroutine(DealHandSequence());
     }
     
     IEnumerator DealHandSequence()
     {
+        isDealing = true;
+        isFolded = false;
+        
+        Debug.Log("[PlayerCards] Начало раздачи карт игроку");
+        
+        // Если есть старые карты - сбрасываем
         if (currentCards.Count > 0)
         {
             yield return StartCoroutine(DiscardAllCardsSequence());
@@ -80,22 +98,30 @@ public class PlayerCardsController : MonoBehaviour
         // Оцениваем комбинацию
         handEvaluation = handEvaluator.EvaluateHand(currentHandData);
         
-        // Раздаем карты
+        // Раздаем карты с анимацией
+        List<Coroutine> animations = new List<Coroutine>();
         for (int i = 0; i < currentHandData.Count; i++)
         {
-            DealCard(i, currentHandData[i]);
+            StartCoroutine(DealCardCoroutine(i, currentHandData[i]));
             yield return new WaitForSeconds(dealDelay);
         }
         
-        yield return new WaitForSeconds(dealDuration);
+        // Ждем завершения последней анимации
+        yield return new WaitForSeconds(dealDuration + 0.2f);
         
         string handDescription = GetHandDescription();
         OnHandReceived?.Invoke(handDescription, handEvaluation.value);
         
         GameDebug.LogPlayerHand(handDescription, handEvaluation.value);
+        
+        isDealing = false;
+        
+        // ВАЖНО: Вызываем событие завершения раздачи
+        Debug.Log("[PlayerCards] Раздача завершена, вызываем OnDealAnimationComplete");
+        OnDealAnimationComplete?.Invoke();
     }
     
-    private void DealCard(int index, CardData cardData)
+    private IEnumerator DealCardCoroutine(int index, CardData cardData)
     {
         Vector3 targetPos = CalculateHandPosition(index);
         Quaternion targetRot = CalculateHandRotation(index);
@@ -115,9 +141,26 @@ public class PlayerCardsController : MonoBehaviour
         cardObj.transform.localScale = Vector3.one * 0.5f;
         
         // Анимация к руке
-        Tween.Position(cardObj.transform, targetPos, dealDuration, 0, dealCurve);
-        Tween.Rotation(cardObj.transform, targetRot, dealDuration, 0, dealCurve);
-        Tween.LocalScale(cardObj.transform, Vector3.one, dealDuration, 0, dealCurve);
+        float elapsed = 0f;
+        Vector3 startPos = cardObj.transform.position;
+        Quaternion startRot = cardObj.transform.rotation;
+        Vector3 startScale = cardObj.transform.localScale;
+        
+        while (elapsed < dealDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = dealCurve.Evaluate(elapsed / dealDuration);
+            
+            cardObj.transform.position = Vector3.Lerp(startPos, targetPos, t);
+            cardObj.transform.rotation = Quaternion.Lerp(startRot, targetRot, t);
+            cardObj.transform.localScale = Vector3.Lerp(startScale, Vector3.one, t);
+            
+            yield return null;
+        }
+        
+        cardObj.transform.position = targetPos;
+        cardObj.transform.rotation = targetRot;
+        cardObj.transform.localScale = Vector3.one;
     }
     
     private Vector3 CalculateHandPosition(int index)
@@ -154,17 +197,38 @@ public class PlayerCardsController : MonoBehaviour
     
     public void DiscardAllCards()
     {
+        if (isDealing)
+        {
+            Debug.LogWarning("[PlayerCards] Нельзя сбросить карты во время раздачи!");
+            return;
+        }
+        
+        if (isDiscarding)
+        {
+            Debug.LogWarning("[PlayerCards] Сброс уже идет!");
+            return;
+        }
+        
         StartCoroutine(DiscardAllCardsSequence());
     }
     
     IEnumerator DiscardAllCardsSequence()
     {
+        if (currentCards.Count == 0)
+        {
+            OnDiscardAnimationComplete?.Invoke();
+            yield break;
+        }
+        
+        isDiscarding = true;
+        Debug.Log("[PlayerCards] Начало сброса карт");
+        
         // Сбрасываем справа налево
         for (int i = currentCards.Count - 1; i >= 0; i--)
         {
             if (currentCards[i] != null)
             {
-                DiscardCard(currentCards[i]);
+                StartCoroutine(DiscardCardCoroutine(currentCards[i]));
             }
             yield return new WaitForSeconds(dealDelay);
         }
@@ -181,14 +245,39 @@ public class PlayerCardsController : MonoBehaviour
         currentHandData.Clear();
         
         // Возвращаем карты в колоду
-        deckManager.ResetDeck();
+        if (deckManager != null)
+        {
+            deckManager.ResetDeck();
+        }
+        
+        isDiscarding = false;
+        
+        Debug.Log("[PlayerCards] Сброс завершен, вызываем OnDiscardAnimationComplete");
+        OnDiscardAnimationComplete?.Invoke();
     }
     
-    private void DiscardCard(Card card)
+    private IEnumerator DiscardCardCoroutine(Card card)
     {
-        // Анимация к точке деспавна
-        Tween.Position(card.transform, despawnPosition.position, discardDuration, 0, discardCurve);
-        Tween.LocalScale(card.transform, Vector3.one * 0.5f, discardDuration, 0, discardCurve);
+        float elapsed = 0f;
+        Vector3 startPos = card.transform.position;
+        Quaternion startRot = card.transform.rotation;
+        Vector3 startScale = card.transform.localScale;
+        Vector3 targetPos = despawnPosition.position;
+        Vector3 targetScale = Vector3.one * 0.5f;
+        
+        while (elapsed < discardDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = discardCurve.Evaluate(elapsed / discardDuration);
+            
+            card.transform.position = Vector3.Lerp(startPos, targetPos, t);
+            card.transform.localScale = Vector3.Lerp(startScale, targetScale, t);
+            
+            yield return null;
+        }
+        
+        card.transform.position = targetPos;
+        card.transform.localScale = targetScale;
     }
     
     public string GetHandDescription()
@@ -220,28 +309,20 @@ public class PlayerCardsController : MonoBehaviour
     
     public void FoldCards()
     {
-        isFolded = true;  // Устанавливаем флаг фолда
+        if (isDealing)
+        {
+            Debug.LogWarning("[PlayerCards] Нельзя сбросить карты во время раздачи!");
+            return;
+        }
+        
+        isFolded = true;
         StartCoroutine(DiscardAllCardsSequence());
     }
     
-    // Сброс всех карт без установки флага фолда (используется при очистке)
-    public void ResetCards()
+    // Принудительная очистка без анимации (для экстренных случаев)
+    public void ForceClearCards()
     {
-        StartCoroutine(ResetCardsSequence());
-    }
-    
-    private IEnumerator ResetCardsSequence()
-    {
-        for (int i = currentCards.Count - 1; i >= 0; i--)
-        {
-            if (currentCards[i] != null)
-            {
-                DiscardCard(currentCards[i]);
-            }
-            yield return new WaitForSeconds(dealDelay);
-        }
-        
-        yield return new WaitForSeconds(discardDuration + 0.1f);
+        StopAllCoroutines();
         
         foreach (var card in currentCards)
         {
@@ -250,5 +331,11 @@ public class PlayerCardsController : MonoBehaviour
         
         currentCards.Clear();
         currentHandData.Clear();
+        
+        isDealing = false;
+        isDiscarding = false;
+        isFolded = false;
+        
+        Debug.Log("[PlayerCards] Принудительная очистка карт");
     }
 }

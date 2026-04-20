@@ -22,22 +22,34 @@ public class RoundController
     {
         GameDebug.LogPhase("РАЗДАЧА КАРТ");
         
-        // Воспроизводим звук раздачи карт один раз для всех
+        // Воспроизводим звук раздачи карт
         AudioManager.Instance?.PlayDealCardsSound();
         
+        // Подписываемся на события завершения получения карт NPC
         SubscribeToTakeCardsFinished();
         allTakeCardsFinished = false;
         npcTakeCardsFinished = new Dictionary<NPCController, bool>();
         
         foreach (var npc in table.GetAllNPCs())
-            npcTakeCardsFinished[npc] = false;
+        {
+            if (npc != null)
+                npcTakeCardsFinished[npc] = false;
+        }
         
+        // Начинаем раздачу
         table.DealNewRound();
         
-        yield return new WaitUntil(() => allTakeCardsFinished);
+        // Ждем пока все NPC получат карты
+        if (npcTakeCardsFinished.Count > 0)
+        {
+            yield return new WaitUntil(() => allTakeCardsFinished);
+        }
+        
         UnsubscribeFromTakeCardsFinished();
         
+        // Даем время на анимацию раздачи карт игроку
         yield return new WaitForSeconds(dealAnimationDelay);
+        
         GameDebug.LogInfo("Все взяли карты");
     }
     
@@ -47,8 +59,11 @@ public class RoundController
         
         foreach (var npc in table.GetActiveNPCs())
         {
-            npc.ShowEmotion();
-            GameDebug.LogNPCEmotion(npc.npcName, npc.GetCurrentEmotion());
+            if (npc != null)
+            {
+                npc.ShowEmotion();
+                GameDebug.LogNPCEmotion(npc.npcName, npc.GetCurrentEmotion());
+            }
         }
         
         yield return new WaitForSeconds(emotionsPhaseDelay);
@@ -62,25 +77,39 @@ public class RoundController
     private void SubscribeToTakeCardsFinished()
     {
         foreach (var npc in table.GetAllNPCs())
-            npc.OnTakeCardsFinished += OnNPCTakeCardsFinished;
+        {
+            if (npc != null)
+                npc.OnTakeCardsFinished += OnNPCTakeCardsFinished;
+        }
     }
     
     private void UnsubscribeFromTakeCardsFinished()
     {
         foreach (var npc in table.GetAllNPCs())
-            npc.OnTakeCardsFinished -= OnNPCTakeCardsFinished;
+        {
+            if (npc != null)
+                npc.OnTakeCardsFinished -= OnNPCTakeCardsFinished;
+        }
     }
     
     private void OnNPCTakeCardsFinished(NPCController npc)
     {
         if (npcTakeCardsFinished == null) return;
+        if (npc == null) return;
         
-        npcTakeCardsFinished[npc] = true;
+        if (npcTakeCardsFinished.ContainsKey(npc))
+        {
+            npcTakeCardsFinished[npc] = true;
+        }
         
+        // Проверяем, все ли NPC получили карты
         foreach (var finished in npcTakeCardsFinished.Values)
+        {
             if (!finished) return;
+        }
         
         allTakeCardsFinished = true;
+        Debug.Log("[RoundController] Все NPC получили карты");
     }
     
     public void SetDelays(float dealDelay, float emotionsDelay)

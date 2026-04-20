@@ -12,12 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85679a53ce92621438eeae2673f0f60f, type: 3}
   m_Name: Level_02
   m_EditorClassIdentifier: Assembly-CSharp::LevelData
-  levelName: Guide
+  levelName: 2
   roundsCount: 5
   anteAmount: 10
-  chipsForLevel: 50
+  chipsForLevel: 70
   npcStartingChips: 50
-  raiseAmount: 20
+  raiseAmount: 10
+  isFinalLevel: 0
+  isPlayerInvolved: 1
   npcSetups:
   - npcPrefab: {fileID: 6596725218989641567, guid: 9df6e1a3f9c7e54408d3939b725e3dc1, type: 3}
     npcBrain: {fileID: 11400000, guid: 7607ccc746e3a8b4994644209447a419, type: 2}

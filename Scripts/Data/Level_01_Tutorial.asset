@@ -15,8 +15,8 @@ MonoBehaviour:
   levelName: Guide
   roundsCount: 5
   anteAmount: 10
-  chipsForLevel: 30
-  npcStartingChips: 30
+  chipsForLevel: 70
+  npcStartingChips: 50
   raiseAmount: 10
   isFinalLevel: 0
   isPlayerInvolved: 1

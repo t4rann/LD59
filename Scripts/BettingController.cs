@@ -24,9 +24,10 @@ public class BettingController
     private bool waitingForNPCsAfterRaise = false;
     private bool playerIsBrokeThisRound = false;
     
-    // Флаги для финального уровня
     private bool isFinalLevel = false;
     private bool deleteNPCsOnLoss = true;
+    
+    private bool isProcessing = false;
     
     public BettingController(TableController table, float turnDelay, int ante)
     {
@@ -39,12 +40,22 @@ public class BettingController
     
     public void ResetRoundState()
     {
+        if (isProcessing) return;
+        
         Pot = 0;
         CurrentBet = 0;
         PlayerAction = PlayerAction.None;
         waitingForNPCsAfterRaise = false;
         playerIsBrokeThisRound = false;
         OnPotChanged?.Invoke(Pot);
+    }
+    
+    public void ForceStop()
+    {
+        isProcessing = false;
+        canPlayerAct = false;
+        waitingForNPCsAfterRaise = false;
+        GameDebug.LogWarning("BettingController принудительно остановлен");
     }
     
     public void SetRaiseAmount(int amount)
@@ -78,6 +89,8 @@ public class BettingController
     
     public bool CollectAnte()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) return false;
+        
         GameDebug.LogPhase("СБОР АНТЕ");
         
         if (playerChips == null)
@@ -139,6 +152,49 @@ public class BettingController
         return true;
     }
     
+    public bool CollectAnteFromNPCsOnly(int anteAmount)
+    {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) return false;
+        
+        int paidNPCs = 0;
+        List<NPCController> npcsToRemove = new List<NPCController>();
+        
+        foreach (var npc in table.GetAllNPCs())
+        {
+            if (npc == null) continue;
+            
+            NPCChips chips = npc.GetComponent<NPCChips>();
+            
+            if (chips == null)
+            {
+                npcsToRemove.Add(npc);
+                continue;
+            }
+            
+            if (!chips.HasEnoughChips(anteAmount))
+            {
+                npcsToRemove.Add(npc);
+                continue;
+            }
+            
+            chips.RemoveChips(anteAmount);
+            AddToPot(anteAmount);
+            paidNPCs++;
+        }
+        
+        foreach (var npc in npcsToRemove)
+        {
+            if (npc != null)
+            {
+                table.RemoveNPC(npc);
+                if (npc.gameObject != null)
+                    npc.gameObject.SetActive(false);
+            }
+        }
+        
+        return paidNPCs > 0;
+    }
+    
     #endregion
     
     #region Betting Phases
@@ -152,10 +208,15 @@ public class BettingController
 
     public IEnumerator BettingPhase()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) yield break;
+        if (isProcessing) yield break;
+        
+        isProcessing = true;
         GameDebug.LogPhase("ХОД NPC");
         
         foreach (var npc in table.GetActiveNPCs())
         {
+            if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) yield break;
             if (npc == null) continue;
             yield return ProcessNPCTurn(npc);
             yield return new WaitForSeconds(npcTurnDelay);
@@ -163,15 +224,19 @@ public class BettingController
         
         GameDebug.LogBetInfo(CurrentBet, Pot);
         GameDebug.LogPhase("ХОД ИГРОКА");
+        isProcessing = false;
     }
     
     public IEnumerator AfterPlayerRaisePhase()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) yield break;
+        
         GameDebug.LogPhase("NPC ОТВЕЧАЮТ НА РЕЙЗ");
         waitingForNPCsAfterRaise = true;
         
         foreach (var npc in table.GetActiveNPCs())
         {
+            if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) yield break;
             if (npc == null) continue;
             yield return ProcessNPCTurnAfterRaise(npc);
             yield return new WaitForSeconds(npcTurnDelay);
@@ -183,6 +248,8 @@ public class BettingController
     
     public IEnumerator PlayerPhase()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) yield break;
+        
         if (table.GetActivePlayersCount() == 0)
         {
             GameDebug.LogSuccess("Все NPC сфолдили, вы забираете банк!");
@@ -357,6 +424,8 @@ public class BettingController
         
         while (PlayerAction == PlayerAction.None && canPlayerAct)
         {
+            if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) yield break;
+            
             if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1))
             {
                 PlayerAction = PlayerAction.Fold;
@@ -451,6 +520,8 @@ public class BettingController
     
     public void CheckAndRemoveBrokeNPCs()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) return;
+        
         List<NPCController> brokeNPCs = new List<NPCController>();
         
         foreach (var npc in table.GetAllNPCs())
@@ -482,47 +553,6 @@ public class BettingController
         return active;
     }
     
-    public bool CollectAnteFromNPCsOnly(int anteAmount)
-    {
-        int paidNPCs = 0;
-        List<NPCController> npcsToRemove = new List<NPCController>();
-        
-        foreach (var npc in table.GetAllNPCs())
-        {
-            if (npc == null) continue;
-            
-            NPCChips chips = npc.GetComponent<NPCChips>();
-            
-            if (chips == null)
-            {
-                npcsToRemove.Add(npc);
-                continue;
-            }
-            
-            if (!chips.HasEnoughChips(anteAmount))
-            {
-                npcsToRemove.Add(npc);
-                continue;
-            }
-            
-            chips.RemoveChips(anteAmount);
-            AddToPot(anteAmount);
-            paidNPCs++;
-        }
-        
-        foreach (var npc in npcsToRemove)
-        {
-            if (npc != null)
-            {
-                table.RemoveNPC(npc);
-                if (npc.gameObject != null)
-                    npc.gameObject.SetActive(false);
-            }
-        }
-        
-        return paidNPCs > 0;
-    }
-    
     public void SetFinalLevel(bool isFinal)
     {
         isFinalLevel = isFinal;
@@ -539,6 +569,8 @@ public class BettingController
     
     public bool RemoveBrokeNPCs()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsGameOver()) return false;
+        
         List<NPCController> toRemove = new List<NPCController>();
         
         foreach (var npc in table.GetAllNPCs())

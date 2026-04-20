@@ -8,6 +8,7 @@ public class LevelController : MonoBehaviour
     
     private List<NPCController> spawnedNPCs = new List<NPCController>();
     private int currentNPCChipsAmount = 100;
+    private LevelData currentLevelData;
     
     public List<NPCController> LoadLevel(LevelData levelData, TableController table)
     {
@@ -19,10 +20,9 @@ public class LevelController : MonoBehaviour
             return null;
         }
         
-        // Сохраняем стартовое количество фишек для NPC
+        currentLevelData = levelData;
         currentNPCChipsAmount = levelData.npcStartingChips;
         
-        // Применяем настройки уровня
         GameLoop gameLoop = FindFirstObjectByType<GameLoop>();
         if (gameLoop != null)
         {
@@ -30,13 +30,16 @@ public class LevelController : MonoBehaviour
             gameLoop.SetAnteAmount(levelData.anteAmount);
         }
         
-        // Спавним NPC
         for (int i = 0; i < levelData.npcSetups.Count; i++)
         {
             NPCSetup setup = levelData.npcSetups[i];
             TransformPoint point = spawnPoints[i];
             
-            if (point.isOccupied) continue;
+            if (point.isOccupied) 
+            {
+                Debug.LogWarning($"Точка спавна {i} уже занята, пропускаем");
+                continue;
+            }
             
             GameObject npcObj = Instantiate(setup.npcPrefab, point.transform.position, 
                                            point.transform.rotation, npcContainer);
@@ -44,30 +47,63 @@ public class LevelController : MonoBehaviour
             NPCController npc = npcObj.GetComponent<NPCController>();
             if (npc != null)
             {
-                // Применяем поведение
-                var field = typeof(NPCController).GetField("brain", 
-                    System.Reflection.BindingFlags.Public | 
-                    System.Reflection.BindingFlags.Instance);
-                if (field != null)
+                if (setup.npcBrain != null)
                 {
-                    field.SetValue(npc, setup.npcBrain);
+                    var method = typeof(NPCController).GetMethod("SetBrain", 
+                        System.Reflection.BindingFlags.Public | 
+                        System.Reflection.BindingFlags.Instance);
+                    if (method != null)
+                    {
+                        method.Invoke(npc, new object[] { setup.npcBrain });
+                    }
+                    else
+                    {
+                        var field = typeof(NPCController).GetField("brain", 
+                            System.Reflection.BindingFlags.Public | 
+                            System.Reflection.BindingFlags.NonPublic | 
+                            System.Reflection.BindingFlags.Instance);
+                        if (field != null)
+                        {
+                            field.SetValue(npc, setup.npcBrain);
+                        }
+                    }
                 }
                 
-                // Устанавливаем фишки NPC
                 NPCChips chips = npc.GetComponent<NPCChips>();
                 if (chips == null)
                 {
                     chips = npc.gameObject.AddComponent<NPCChips>();
                 }
                 
-                // Устанавливаем стартовое количество фишек из уровня
                 chips.SetStartingChips(currentNPCChipsAmount);
+                
+                npc.ResetToNeutral();
+                npc.ResetConsecutiveFolds();
+                
+                var visualController = npc.GetComponent<NPCVisualController>();
+                if (visualController != null)
+                {
+                    var method = typeof(NPCVisualController).GetMethod("UpdateChipsDisplay");
+                    if (method != null)
+                    {
+                        method.Invoke(visualController, new object[] { npc, currentNPCChipsAmount });
+                    }
+                }
                 
                 spawnedNPCs.Add(npc);
                 point.isOccupied = true;
-                table.AddNPC(npc);
+                
+                if (table != null)
+                {
+                    table.AddNPC(npc);
+                }
                 
                 Debug.Log($"Спавн NPC: {npc.npcName} с {currentNPCChipsAmount} фишками");
+            }
+            else
+            {
+                Debug.LogError($"Префаб {setup.npcPrefab.name} не содержит компонент NPCController!");
+                Destroy(npcObj);
             }
         }
         
@@ -93,7 +129,9 @@ public class LevelController : MonoBehaviour
         foreach (var npc in spawnedNPCs)
         {
             if (npc != null && npc.gameObject != null)
+            {
                 Destroy(npc.gameObject);
+            }
         }
         spawnedNPCs.Clear();
         
@@ -103,5 +141,45 @@ public class LevelController : MonoBehaviour
         }
         
         Debug.Log("Все NPC очищены");
+    }
+    
+    public void ReloadCurrentLevel(TableController table)
+    {
+        if (currentLevelData != null)
+        {
+            Debug.Log("Перезагрузка текущего уровня...");
+            ClearCurrentNPCs(table);
+            LoadLevel(currentLevelData, table);
+        }
+        else
+        {
+            Debug.LogWarning("Нет данных о текущем уровне для перезагрузки");
+        }
+    }
+    
+    public int GetCurrentNPCChipsAmount()
+    {
+        return currentNPCChipsAmount;
+    }
+    
+    public void SetCurrentNPCChipsAmount(int amount)
+    {
+        currentNPCChipsAmount = amount;
+        foreach (var npc in spawnedNPCs)
+        {
+            if (npc != null)
+            {
+                var chips = npc.GetComponent<NPCChips>();
+                if (chips != null)
+                {
+                    chips.SetStartingChips(currentNPCChipsAmount);
+                }
+            }
+        }
+    }
+    
+    public List<NPCController> GetSpawnedNPCs()
+    {
+        return spawnedNPCs;
     }
 }

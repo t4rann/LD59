@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85679a53ce92621438eeae2673f0f60f, type: 3}
   m_Name: Level_04
   m_EditorClassIdentifier: Assembly-CSharp::LevelData
-  levelName: Guide
+  levelName: 4
   roundsCount: 5
   anteAmount: 200
   chipsForLevel: 1000

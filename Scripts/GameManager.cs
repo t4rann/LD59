@@ -8,11 +8,18 @@ public class GameManager : MonoBehaviour
     [Header("Game State")]
     [SerializeField] private bool isGameOver = false;
     [SerializeField] private bool isPlayerBroke = false;
-    [SerializeField] private bool isRestarting = false;
+    
+    [Header("Debug Keys")]
+    [SerializeField] private KeyCode instantWinKey = KeyCode.F1;
+    [SerializeField] private KeyCode instantLoseKey = KeyCode.F2;
+    [SerializeField] private bool enableDebugKeys = true;
     
     public System.Action OnPlayerBroke;
     public System.Action<NPCController> OnNPCBroke;
     public System.Action OnGameOver;
+    public System.Action OnInstantWin;
+    public System.Action OnInstantLose;
+    public System.Action OnRestartCurrentLevel; // Событие перезапуска текущего уровня
     
     private void Awake()
     {
@@ -34,26 +41,40 @@ public class GameManager : MonoBehaviour
             Application.Quit();
         }
         
-        if (Input.GetKeyDown(KeyCode.R))
+        if (enableDebugKeys)
         {
-            RestartGame();
+            if (Input.GetKeyDown(instantWinKey))
+            {
+                Debug.LogWarning("=== ОТЛАДКА: МГНОВЕННАЯ ПОБЕДА ===");
+                OnInstantWin?.Invoke();
+            }
+            
+            if (Input.GetKeyDown(instantLoseKey))
+            {
+                Debug.LogWarning("=== ОТЛАДКА: МГНОВЕННОЕ ПОРАЖЕНИЕ ===");
+                OnInstantLose?.Invoke();
+            }
         }
     }
     
     public void PlayerOutOfChips()
     {
-        if (isGameOver || isRestarting) return;
+        if (isGameOver) return;
         
         isPlayerBroke = true;
         isGameOver = true;
-        isRestarting = true;
         
-        GameDebug.LogError("ИГРОК ПРОИГРАЛ ВСЕ ФИШКИ! ПЕРЕЗАПУСК...");
+        GameDebug.LogError("ИГРОК ПРОИГРАЛ ВСЕ ФИШКИ!");
         
         OnPlayerBroke?.Invoke();
         OnGameOver?.Invoke();
         
-        RestartGame();
+        // Перезапускаем текущий уровень
+        OnRestartCurrentLevel?.Invoke();
+        
+        // Сбрасываем флаги после перезапуска
+        isGameOver = false;
+        isPlayerBroke = false;
     }
     
     public void NPCOutOfChips(NPCController npc)
@@ -77,13 +98,5 @@ public class GameManager : MonoBehaviour
     {
         isGameOver = false;
         isPlayerBroke = false;
-        isRestarting = false;
-    }
-    
-    public void RestartGame()
-    {
-        GameDebug.LogHeader("ПЕРЕЗАПУСК ИГРЫ...");
-        ResetGameState();
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 }

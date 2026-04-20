@@ -31,6 +31,7 @@ public class NPCChips : MonoBehaviour
         if (amount < 0) return false;
         currentChips += amount;
         OnChipsChanged?.Invoke(npcController, currentChips);
+        Debug.Log($"{npcController?.npcName} получил {amount} фишек. Всего: {currentChips}");
         return true;
     }
     
@@ -41,6 +42,7 @@ public class NPCChips : MonoBehaviour
         
         currentChips -= amount;
         OnChipsChanged?.Invoke(npcController, currentChips);
+        Debug.Log($"{npcController?.npcName} потерял {amount} фишек. Осталось: {currentChips}");
         return true;
     }
     
@@ -53,6 +55,7 @@ public class NPCChips : MonoBehaviour
     {
         currentChips = startingChips;
         OnChipsChanged?.Invoke(npcController, currentChips);
+        Debug.Log($"{npcController?.npcName} сбросил фишки до {currentChips}");
     }
     
     public void SetStartingChips(int chips)
@@ -60,6 +63,14 @@ public class NPCChips : MonoBehaviour
         startingChips = chips;
         currentChips = startingChips;
         OnChipsChanged?.Invoke(npcController, currentChips);
+        Debug.Log($"{npcController?.npcName} установлены фишки: {currentChips}");
+    }
+    
+    public void SetChips(int chips)
+    {
+        currentChips = Mathf.Max(0, chips);
+        OnChipsChanged?.Invoke(npcController, currentChips);
+        Debug.Log($"{npcController?.npcName} фишки принудительно установлены на {currentChips}");
     }
     
     public bool IsBroke()

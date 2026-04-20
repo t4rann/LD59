@@ -15,6 +15,7 @@ public class TableController : MonoBehaviour
     private Dictionary<NPCController, List<CardData>> npcHands = new Dictionary<NPCController, List<CardData>>();
     private Dictionary<NPCController, int> npcHandValues = new Dictionary<NPCController, int>();
     private Dictionary<NPCController, string> npcHandDescriptions = new Dictionary<NPCController, string>();
+    private bool isDealing = false;
     
     void Start()
     {
@@ -34,6 +35,17 @@ public class TableController : MonoBehaviour
 
     public void DealNewRound()
     {   
+        if (isDealing)
+        {
+            Debug.LogWarning("Раздача уже идет, пропускаем");
+            return;
+        }
+        
+        isDealing = true;
+        
+        Debug.Log("[Table] Начинаем раздачу нового раунда");
+        
+        // Сначала раздаем карты NPC
         foreach (var npc in allNPCs)
         {
             if (npc == null) continue;
@@ -50,10 +62,15 @@ public class TableController : MonoBehaviour
             npc.ReceiveNewHand(evaluation.value);
         }
         
+        // Потом раздаем карты игроку
         if (playerCards != null)
         {
+            Debug.Log("[Table] Раздаем карты игроку");
             playerCards.DealNewHand();
         }
+        
+        isDealing = false;
+        Debug.Log("[Table] Раздача завершена");
     }
     
     public void MarkNPCAsFolded(NPCController npc)
@@ -75,31 +92,46 @@ public class TableController : MonoBehaviour
         }
     }
     
-    public void DiscardAllCards()
+public void FullCleanup()
+{
+    if (isDealing)
     {
-        if (playerCards != null)
-        {
-            playerCards.DiscardAllCards();
-        }
-        
-        foreach (var npc in allNPCs)
-        {
-            if (npc != null && npc.HasCardsActive)
-            {
-                npc.DiscardCards();
-            }
-        }
-        
-        npcHands.Clear();
-        npcHandValues.Clear();
-        npcHandDescriptions.Clear();
+        Debug.LogWarning("[Table] Нельзя очищать во время раздачи!");
+        return;
     }
     
-    public void FullCleanup()
+    Debug.Log("[Table] Полная очистка");
+    DiscardAllCards();
+    ResetAllEmotions();
+}
+
+public void DiscardAllCards()
+{
+    if (isDealing)
     {
-        DiscardAllCards();
-        ResetAllEmotions();
+        Debug.LogWarning("[Table] Нельзя сбрасывать карты во время раздачи!");
+        return;
     }
+    
+    Debug.Log("[Table] Сброс всех карт");
+    
+    if (playerCards != null)
+    {
+        playerCards.DiscardAllCards();
+    }
+    
+    foreach (var npc in allNPCs)
+    {
+        if (npc != null && npc.HasCardsActive)
+        {
+            npc.DiscardCards();
+        }
+    }
+    
+    npcHands.Clear();
+    npcHandValues.Clear();
+    npcHandDescriptions.Clear();
+}
     
     public List<NPCController> GetAllNPCs()
     {
@@ -192,7 +224,6 @@ public class TableController : MonoBehaviour
     {
         if (npc != null && allNPCs.Contains(npc))
         {
-            // Удаляем данные о руке NPC
             if (npcHands.ContainsKey(npc))
                 npcHands.Remove(npc);
             if (npcHandValues.ContainsKey(npc))
@@ -207,12 +238,12 @@ public class TableController : MonoBehaviour
     
     public void ClearAllNPCs()
     {
-        // Очищаем словари с данными о руках NPC
+        Debug.Log("[Table] Очистка всех NPC");
+        
         npcHands.Clear();
         npcHandValues.Clear();
         npcHandDescriptions.Clear();
         
-        // Удаляем всех NPC из списка
         for (int i = allNPCs.Count - 1; i >= 0; i--)
         {
             var npc = allNPCs[i];
@@ -242,5 +273,10 @@ public class TableController : MonoBehaviour
             if (npc != null)
                 npc.GetComponent<NPCCardsVisual>()?.HideCards();
         }
+    }
+    
+    public bool IsDealing()
+    {
+        return isDealing;
     }
 }

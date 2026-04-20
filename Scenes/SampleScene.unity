@@ -954,6 +954,12 @@ MonoBehaviour:
   levelCompleteParticles: {fileID: 0}
   particleStartDelay: 0.2
   additionalVisualElements: []
+  playSounds: 1
+  levelCompleteSound: {fileID: 0}
+  transitionStartSound: {fileID: 0}
+  transitionEndSound: {fileID: 0}
+  transitionSoundVolume: 0.7
+  levelCompleteSoundVolume: 0.8
 --- !u!4 &487403269
 Transform:
   m_ObjectHideFlags: 0
@@ -2089,6 +2095,7 @@ MonoBehaviour:
   musicSource: {fileID: 0}
   sfxSource: {fileID: 0}
   dealSource: {fileID: 0}
+  transitionSource: {fileID: 0}
   betSound: {fileID: 8300000, guid: efe93cb6c671c534189ad7f1a3315f3c, type: 3}
   raiseSound: {fileID: 8300000, guid: 5aad83d3a5e5ad94ab1b74fdf45d5361, type: 3}
   foldSound: {fileID: 8300000, guid: 5353b0d397bf14e46b724b3cf3831d9b, type: 3}
@@ -2098,11 +2105,16 @@ MonoBehaviour:
   winSound: {fileID: 8300000, guid: 0bd79604fdf6dee4d8b5d32149372c67, type: 3}
   playerWinSound: {fileID: 8300000, guid: 0bd79604fdf6dee4d8b5d32149372c67, type: 3}
   npcWinSound: {fileID: 8300000, guid: fe30bfc0a0ebf7344af5736b6f76af9b, type: 3}
+  levelCompleteSound: {fileID: 0}
+  transitionStartSound: {fileID: 8300000, guid: 18f70a2d0419ee5438b8498f0c46ed52, type: 3}
+  transitionEndSound: {fileID: 0}
+  transitionWooshSound: {fileID: 0}
   ambientLoop: {fileID: 8300000, guid: 9dd3e160bd762e24f87eb1b70d4a86e5, type: 3}
   ambientVolume: 0.3
   masterVolume: 1
   musicVolume: 0.335
   sfxVolume: 0.7
+  transitionVolume: 0.8
 --- !u!4 &1420485560
 Transform:
   m_ObjectHideFlags: 0
@@ -2555,7 +2567,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   isGameOver: 0
   isPlayerBroke: 0
-  isRestarting: 0
+  instantWinKey: 282
+  instantLoseKey: 283
+  enableDebugKeys: 1
 --- !u!4 &1664656027
 Transform:
   m_ObjectHideFlags: 0
@@ -2628,10 +2642,10 @@ MonoBehaviour:
   bankVisual: {fileID: 1206010530}
   actionButtons: {fileID: 901509754}
   levels:
-  - {fileID: 11400000, guid: 31a1762c3ddc62d4f87f6dbc2ea64c8e, type: 2}
   - {fileID: 11400000, guid: 42cc87ceb11a25c41a80e13992736136, type: 2}
   - {fileID: 11400000, guid: 2e8961674e4b50642a97f3515a102100, type: 2}
   - {fileID: 11400000, guid: 38e53fee04d651c4d94feee9ebed8cc7, type: 2}
+  - {fileID: 11400000, guid: 31a1762c3ddc62d4f87f6dbc2ea64c8e, type: 2}
   levelController: {fileID: 1664656028}
   transitionEffects: {fileID: 487403268}
   levelTransitionDelay: 1
